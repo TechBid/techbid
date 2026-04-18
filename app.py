@@ -5612,8 +5612,6 @@ def admin_dashboard():
         "revenue_usd": revenue_usd,
         "pending_disb": pending_disb
     }
-        f"SELECT p.*, u.email FROM {STORE.t('payments')} p JOIN {STORE.t('users')} u ON u.id=p.user_id "
-        f"ORDER BY p.created_at DESC LIMIT 10")
     return render_template("admin/dashboard.html",
                            users_count=stats.get("users_count", 0),
                            workers_count=stats.get("workers_count", 0),
