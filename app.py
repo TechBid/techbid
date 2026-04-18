@@ -977,6 +977,44 @@ class MySQLStore:
             """)
             conn.commit()
 
+            # ─ Add hourly job support columns ─────────────────────────────────────
+            # These columns enable proper hourly rate tracking and hour verification
+            try:
+                cur.execute(f"ALTER TABLE {jobs} ADD COLUMN hourly_rate DECIMAL(8,2) NULL DEFAULT NULL;")
+                conn.commit()
+            except Exception:
+                conn.rollback()
+            
+            try:
+                cur.execute(f"ALTER TABLE {jobs} ADD COLUMN max_hours INT NULL DEFAULT NULL;")
+                conn.commit()
+            except Exception:
+                conn.rollback()
+            
+            try:
+                cur.execute(f"ALTER TABLE {p}work_submissions ADD COLUMN hours_worked DECIMAL(10,2) NULL DEFAULT NULL;")
+                conn.commit()
+            except Exception:
+                conn.rollback()
+            
+            try:
+                cur.execute(f"ALTER TABLE {p}work_submissions ADD COLUMN hours_verified_by_employer DECIMAL(10,2) NULL DEFAULT NULL;")
+                conn.commit()
+            except Exception:
+                conn.rollback()
+            
+            try:
+                cur.execute(f"ALTER TABLE {p}work_submissions ADD COLUMN time_entries JSON NULL DEFAULT NULL;")
+                conn.commit()
+            except Exception:
+                conn.rollback()
+            
+            try:
+                cur.execute(f"ALTER TABLE {p}contracts ADD COLUMN hours_logged DECIMAL(10,2) NULL DEFAULT NULL;")
+                conn.commit()
+            except Exception:
+                conn.rollback()
+
             # Add indexes that may be missing on existing deployments
             for idx_sql in [
                 f"ALTER TABLE {users} ADD INDEX idx_{p}users_role (role)",
@@ -1733,6 +1771,24 @@ def _pick_employer_name(store: MySQLStore) -> str:
     import random
     names = _get_employer_name_pool(store)
     return random.choice(names)
+
+def _calculate_payment_amount(contract: dict, job: dict) -> tuple[float, str]:
+    """
+    Calculate payment amount based on job type (hourly or fixed).
+    Returns (amount_usd, description_text)
+    For hourly: amount = hourly_rate × hours_logged
+    For fixed: amount = contract price_usd
+    """
+    if job and job.get("job_type") == "hourly":
+        hourly_rate = job.get("hourly_rate", 0)
+        hours_logged = contract.get("hours_logged", 0)
+        if hourly_rate and hours_logged:
+            amount = float(hourly_rate) * float(hours_logged)
+            return amount, f"Hourly ({hours_logged}h × ${hourly_rate}/h)"
+    
+    # Default to full contract price (fixed-price or fallback)
+    amount = float(contract.get("price_usd") or 0)
+    return amount, "Fixed-price contract"
 
 def _interview_winner_names(store: MySQLStore, job_id: int, count: int) -> list[str]:
     if count <= 0:
@@ -4098,6 +4154,22 @@ def employer_post_job():
         duration = request.form.get("duration", "").strip()[:80]
         use_ai   = request.form.get("use_ai") == "true"
         
+        # Hourly job fields
+        hourly_rate = None
+        max_hours = None
+        if jtype == "hourly":
+            try:
+                hourly_rate = float(request.form.get("hourly_rate", 0) or 0)
+                max_hours = int(request.form.get("max_hours", 0) or 0)
+                if hourly_rate <= 0 or max_hours <= 0:
+                    flash("Hourly rate and max hours must be positive values.", "error")
+                    return redirect(url_for("employer_post_job"))
+                # Override budget_usd with calculated amount (hourly_rate * max_hours)
+                budget = hourly_rate * max_hours
+            except (ValueError, TypeError):
+                flash("Invalid hourly rate or max hours value.", "error")
+                return redirect(url_for("employer_post_job"))
+        
         if not title or category not in JOB_CATEGORIES or jtype not in JOB_TYPES:
             flash("Please fill in all required fields correctly.", "error")
             return redirect(url_for("employer_post_job"))
@@ -4112,11 +4184,19 @@ def employer_post_job():
         # Calculate connects_required using tiered calculator
         conn_req = _calculate_connects_required(budget)
 
-        job_id = STORE.execute(
-            f"INSERT INTO {STORE.t('jobs')} (employer_id, title, description, category, job_type, budget_usd, duration, connects_required, is_robot, status) "
-            f"VALUES (%s,%s,%s,%s,%s,%s,%s,%s,0,'open')",
-            (uid, title, desc, category, jtype, budget, duration, conn_req),
-        )
+        # Insert job with hourly fields if applicable
+        if jtype == "hourly":
+            job_id = STORE.execute(
+                f"INSERT INTO {STORE.t('jobs')} (employer_id, title, description, category, job_type, budget_usd, duration, connects_required, hourly_rate, max_hours, is_robot, status) "
+                f"VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,0,'open')",
+                (uid, title, desc, category, jtype, budget, duration, conn_req, hourly_rate, max_hours),
+            )
+        else:
+            job_id = STORE.execute(
+                f"INSERT INTO {STORE.t('jobs')} (employer_id, title, description, category, job_type, budget_usd, duration, connects_required, is_robot, status) "
+                f"VALUES (%s,%s,%s,%s,%s,%s,%s,%s,0,'open')",
+                (uid, title, desc, category, jtype, budget, duration, conn_req),
+            )
         flash("Job posted successfully!", "success")
         return redirect(url_for("employer_applicants", job_id=job_id))
     
@@ -4772,39 +4852,76 @@ def contract_submit_work(contract_id):
     if contract["status"] not in ["funded", "in_progress"]:
         return jsonify({"error": f"Contract is {contract['status']}, cannot submit work"}), 400
     
+    # Get job to check job_type and hourly fields
+    job = STORE.query_one(
+        f"SELECT job_type, hourly_rate, max_hours FROM {STORE.t('jobs')} WHERE id=%s",
+        (contract["job_id"],)
+    )
+    
     # Handle both JSON and form-encoded data (Phase 4 compatibility)
     if request.is_json:
         data = request.get_json()
         deliverables = data.get("deliverables_links", [])
         submitted_message = data.get("submitted_message", "Work completed").strip()
+        hours_worked = data.get("hours_worked")
     else:
         deliverables = [{"title": t, "url": u} 
                        for t, u in zip(request.form.getlist("title[]"), request.form.getlist("url[]")) 
                        if u]
         submitted_message = request.form.get("submitted_message", "Work completed").strip()
+        hours_worked = request.form.get("hours_worked")
+    
+    # Validate hours for hourly jobs
+    if job and job["job_type"] == "hourly":
+        if not hours_worked:
+            return jsonify({"error": "Hours worked is required for hourly contracts"}), 400
+        try:
+            hours_worked = float(hours_worked)
+            if hours_worked <= 0 or hours_worked > job.get("max_hours", 999999):
+                return jsonify({"error": f"Hours must be between 0 and {job.get('max_hours')}"}), 400
+        except (ValueError, TypeError):
+            return jsonify({"error": "Invalid hours worked value"}), 400
+    else:
+        hours_worked = None
     
     deliverables = _normalize_deliverables(deliverables)
     if not deliverables:
         return jsonify({"error": "Must provide at least one deliverable link"}), 400
     
-    # Insert work submission
-    STORE.execute(
-        f"INSERT INTO {STORE.t('work_submissions')} (contract_id, deliverables_links, submitted_message, submitted_at) "
-        f"VALUES (%s,%s,%s, NOW())",
-        (contract_id, json.dumps(deliverables), submitted_message)
-    )
+    # Insert work submission with hours if applicable
+    if hours_worked:
+        STORE.execute(
+            f"INSERT INTO {STORE.t('work_submissions')} (contract_id, deliverables_links, submitted_message, hours_worked, submitted_at) "
+            f"VALUES (%s,%s,%s,%s,NOW())",
+            (contract_id, json.dumps(deliverables), submitted_message, hours_worked)
+        )
+    else:
+        STORE.execute(
+            f"INSERT INTO {STORE.t('work_submissions')} (contract_id, deliverables_links, submitted_message, submitted_at) "
+            f"VALUES (%s,%s,%s,NOW())",
+            (contract_id, json.dumps(deliverables), submitted_message)
+        )
     
     # Update contract status to under_review and set review window
+    # For hourly jobs, also store hours_logged
     review_days = contract.get("review_days", 7)
-    STORE.execute(
-        f"UPDATE {STORE.t('contracts')} SET status='under_review', submitted_at=NOW(), "
-        f"review_window_starts=NOW(), review_deadline=DATE_ADD(NOW(), INTERVAL %s DAY) "
-        f"WHERE id=%s",
-        (review_days, contract_id)
-    )
+    if hours_worked:
+        STORE.execute(
+            f"UPDATE {STORE.t('contracts')} SET status='under_review', submitted_at=NOW(), "
+            f"review_window_starts=NOW(), review_deadline=DATE_ADD(NOW(), INTERVAL %s DAY), "
+            f"hours_logged=%s WHERE id=%s",
+            (review_days, hours_worked, contract_id)
+        )
+    else:
+        STORE.execute(
+            f"UPDATE {STORE.t('contracts')} SET status='under_review', submitted_at=NOW(), "
+            f"review_window_starts=NOW(), review_deadline=DATE_ADD(NOW(), INTERVAL %s DAY) "
+            f"WHERE id=%s",
+            (review_days, contract_id)
+        )
     
-    log_contract_event(contract_id, "work_submitted", uid, {"links_count": len(deliverables)})
-    audit_log(uid, "WORK_SUBMITTED", "contract", contract_id, details=f"Links: {len(deliverables)}")
+    log_contract_event(contract_id, "work_submitted", uid, {"links_count": len(deliverables), "hours": hours_worked})
+    audit_log(uid, "WORK_SUBMITTED", "contract", contract_id, details=f"Links: {len(deliverables)}, Hours: {hours_worked or 'N/A'}")
     
     push_notif(
         contract["employer_id"],
@@ -4833,7 +4950,16 @@ def contract_approve(contract_id):
     if contract["status"] != "under_review":
         return jsonify({"error": "Contract not under review"}), 400
     
-    # Update status and mark completed
+    # Get job to determine payment calculation
+    job = STORE.query_one(
+        f"SELECT job_type, hourly_rate FROM {STORE.t('jobs')} WHERE id=%s",
+        (contract["job_id"],)
+    )
+    
+    # Calculate payment amount based on job type
+    payment_amount, payment_desc = _calculate_payment_amount(contract, job)
+    
+    # Update status and mark completed, store calculated payment amount
     STORE.execute(
         f"UPDATE {STORE.t('contracts')} SET status='completed', completed_at=NOW() WHERE id=%s",
         (contract_id,)
@@ -4857,16 +4983,16 @@ def contract_approve(contract_id):
             url_for("contract_room", job_id=contract["job_id"]),
         )
     
-    log_contract_event(contract_id, "work_approved", uid)
-    audit_log(uid, "CONTRACT_COMPLETED", "contract", contract_id)
+    log_contract_event(contract_id, "work_approved", uid, {"payment_amount": payment_amount, "payment_type": payment_desc})
+    audit_log(uid, "CONTRACT_COMPLETED", "contract", contract_id, details=f"Payment: ${payment_amount:.2f} ({payment_desc})")
     
     push_notif(
         contract["freelancer_id"],
-        f"Work approved on contract #{contract_id}! Funds released.",
+        f"Work approved on contract #{contract_id}! Funds released (${payment_amount:.2f}).",
         url_for("contract_room", job_id=contract["job_id"]),
     )
     
-    return jsonify({"success": True})
+    return jsonify({"success": True, "payment_amount": payment_amount})
 
 
 @app.route("/contract/<int:contract_id>/dispute", methods=["POST"])
@@ -5056,6 +5182,15 @@ def admin_release_to_freelancer(contract_id):
     if contract["review_deadline"] > datetime.utcnow():
         return jsonify({"error": "Review window has not expired yet"}), 400
     
+    # Get job to determine payment calculation
+    job = STORE.query_one(
+        f"SELECT job_type, hourly_rate FROM {STORE.t('jobs')} WHERE id=%s",
+        (contract["job_id"],)
+    )
+    
+    # Calculate payment amount based on job type
+    payment_amount, payment_desc = _calculate_payment_amount(contract, job)
+    
     # Release to freelancer
     STORE.execute(
         f"UPDATE {STORE.t('contracts')} SET status='approved' WHERE id=%s",
@@ -5063,12 +5198,12 @@ def admin_release_to_freelancer(contract_id):
     )
     
     log_contract_event(contract_id, "manually_released_expired", session["user_id"], 
-                      {"reason": "Admin manual release after review window expired"})
+                      {"reason": "Admin manual release after review window expired", "payment_amount": payment_amount})
     
     # Notify both parties
     push_notif(
         contract["freelancer_id"],
-        f"Contract #{contract_id} approved! Funds (${contract['price_usd']:.2f}) have been released to you.",
+        f"Contract #{contract_id} approved! Funds (${payment_amount:.2f}) have been released to you.",
         url_for("contract_room", job_id=contract["job_id"]),
     )
     push_notif(
