@@ -137,7 +137,7 @@
         <div class="winner-name">{{ job.robot_name }}</div>
         <div class="winner-conn">Appears with a bid of <strong>{{ job.connects_shown }} connects</strong></div>
         {% if job.success_rate %}
-        <div class="winner-conn">Simulated success rate: <strong>{{ "%.1f"|format(job.success_rate) }}%</strong> · Completed jobs: <strong>{{ job.completed_jobs or 0 }}</strong></div>
+        <div class="winner-conn">Success rate: <strong>{{ "%.1f"|format(job.success_rate) }}%</strong> · Completed jobs: <strong>{{ job.completed_jobs or 0 }}</strong></div>
         {% endif %}
       </div>
     </div>
