@@ -38,7 +38,7 @@ except ImportError:
     jwt = None
 from flask import (
     Flask, flash, g, jsonify, make_response, redirect,
-    render_template, request, session, url_for, abort as flask_abort, send_from_directory
+    render_template, request, session, url_for, abort as flask_abort, send_from_directory, Response
 )
 from flask_compress import Compress
 from flask_socketio import SocketIO, emit, join_room, leave_room
@@ -6249,19 +6249,20 @@ Sitemap: """ + url_for("sitemap_xml", _external=True), 200, {"Content-Type": "te
 
 @app.route("/sitemap.xml")
 def sitemap_xml():
-    """Generate sitemap.xml for search engines."""
+    """Generate sitemap.xml for search engines with high-value content."""
     from datetime import datetime
     
     urls = []
     
-    # Static pages
+    # HIGH-VALUE STATIC PAGES (SEO Priority)
     static_pages = [
-        ("index", 1.0, "daily"),
-        ("employer_pricing", 0.9, "weekly"),
-        ("help_support", 0.8, "monthly"),
-        ("about", 0.8, "monthly"),
-        ("terms", 0.5, "yearly"),
-        ("privacy", 0.5, "yearly"),
+        ("index", 1.0, "daily"),                    # Homepage
+        ("worker_jobs", 0.9, "daily"),              # Jobs listing (main traffic page)
+        ("employer_pricing", 0.9, "weekly"),        # Pricing (conversion page)
+        ("help_support", 0.8, "monthly"),           # Help
+        ("about", 0.8, "monthly"),                  # About
+        ("terms", 0.5, "yearly"),                   # Terms
+        ("privacy", 0.5, "yearly"),                 # Privacy
     ]
     
     for endpoint, priority, changefreq in static_pages:
@@ -6275,23 +6276,49 @@ def sitemap_xml():
         except:
             pass
     
-    # Dynamic job listings (only show published jobs)
-    jobs = STORE.query_all(
-        f"SELECT id, created_at FROM {STORE.t('jobs')} WHERE status='open' AND is_robot=0 LIMIT 1000",
-        ()
-    )
-    for job in jobs:
-        try:
-            urls.append({
-                "loc": url_for("worker_job_detail", job_id=job["id"], _external=True),
-                "changefreq": "daily",
-                "priority": 0.7,
-                "lastmod": job["created_at"].isoformat() + "Z" if job.get("created_at") else datetime.utcnow().isoformat() + "Z",
-            })
-        except:
-            pass
+    # HIGH-VALUE: ALL OPEN JOBS (Google cares about this)
+    try:
+        jobs = STORE.query_all(
+            f"SELECT id, created_at FROM {STORE.t('jobs')} WHERE status='open' AND is_robot=0 ORDER BY created_at DESC LIMIT 5000",
+            ()
+        )
+        for job in jobs:
+            try:
+                urls.append({
+                    "loc": url_for("worker_job_detail", job_id=job["id"], _external=True),
+                    "changefreq": "daily",
+                    "priority": 0.8,  # High priority for job listings
+                    "lastmod": job.get("created_at", datetime.utcnow()).isoformat() + "Z" if isinstance(job.get("created_at"), datetime) else datetime.utcnow().isoformat() + "Z",
+                })
+            except Exception as e:
+                LOG.debug(f"Sitemap job error: {e}")
+                pass
+    except Exception as e:
+        LOG.debug(f"Sitemap jobs query error: {e}")
+        pass
     
-    # Generate XML
+    # HIGH-VALUE: FREELANCER PROFILES (User-generated content = SEO gold)
+    try:
+        workers = STORE.query_all(
+            f"SELECT id, updated_at FROM {STORE.t('users')} WHERE role='worker' AND is_verified=1 ORDER BY updated_at DESC LIMIT 2000",
+            ()
+        )
+        for worker in workers:
+            try:
+                urls.append({
+                    "loc": url_for("worker_profile", worker_id=worker["id"], _external=True),
+                    "changefreq": "weekly",
+                    "priority": 0.7,  # High priority for worker profiles
+                    "lastmod": worker.get("updated_at", datetime.utcnow()).isoformat() + "Z" if isinstance(worker.get("updated_at"), datetime) else datetime.utcnow().isoformat() + "Z",
+                })
+            except Exception as e:
+                LOG.debug(f"Sitemap worker error: {e}")
+                pass
+    except Exception as e:
+        LOG.debug(f"Sitemap workers query error: {e}")
+        pass
+    
+    # Generate XML with proper formatting
     xml = '<?xml version="1.0" encoding="UTF-8"?>\n'
     xml += '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
     for url in urls:
@@ -6303,7 +6330,8 @@ def sitemap_xml():
         xml += '  </url>\n'
     xml += '</urlset>'
     
-    return xml, 200, {"Content-Type": "application/xml"}
+    # Return with correct Content-Type header
+    return Response(xml, mimetype="application/xml")
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
