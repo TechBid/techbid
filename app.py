@@ -97,16 +97,16 @@ ROBOT_ACTIVITY_WINDOW_MINUTES = 24 * 60
 
 # ── Freelance job categories ───────────────────────────────────────────────────
 JOB_CATEGORIES = [
-    "Web Development", "Mobile Development", "UI/UX Design", "Graphic Design",
-    "Data Science & Analytics", "Machine Learning / AI", "DevOps & Cloud",
-    "Cybersecurity", "Database Administration", "Game Development",
-    "SEO & Digital Marketing", "Content Writing & Copywriting", "Video Editing",
-    "Animation & Motion Graphics", "Virtual Assistance", "Customer Support",
-    "Project Management", "Business Analysis", "Accounting & Finance",
-    "Legal Services", "Translation & Localization", "Photo Editing",
-    "WordPress Development", "E-commerce & Shopify", "Blockchain & Web3",
-    "Quality Assurance & Testing", "Technical Writing", "Social Media Management",
-    "Email Marketing", "Sales & Lead Generation",
+    "Accounting & Finance", "Animation & Motion Graphics", "Blockchain & Web3",
+    "Business Analysis", "Content Writing & Copywriting", "Customer Support",
+    "Cybersecurity", "Data Science & Analytics", "Database Administration",
+    "DevOps & Cloud", "E-commerce & Shopify", "Email Marketing",
+    "Game Development", "Graphic Design", "Legal Services",
+    "Machine Learning / AI", "Mobile Development", "Photo Editing",
+    "Project Management", "Quality Assurance & Testing", "Sales & Lead Generation",
+    "SEO & Digital Marketing", "Social Media Management", "Technical Writing",
+    "Translation & Localization", "UI/UX Design", "Video Editing",
+    "Virtual Assistance", "Web Development", "WordPress Development",
 ]
 
 JOB_TYPES   = ["hourly", "daily", "fixed"]
