@@ -1507,11 +1507,7 @@ def inject_globals():
         "notif_count": notif_count,
         "categories": JOB_CATEGORIES,
         "packages": CONNECTS_PACKAGES,
-<<<<<<< HEAD
         "now": datetime.utcnow()
-=======
-        "now": __import__("datetime").datetime.utcnow(),
->>>>>>> 9105e6ac7d92af4ee8dcc9545171b9e3da01f270
     }
 
 @app.template_filter("time_ago")
@@ -1701,7 +1697,6 @@ def _refresh_session(user_id: int) -> None:
         f"WHERE is_read=0 GROUP BY user_id) n ON n.user_id=u.id "
         f"WHERE u.id=%s", (user_id,))
     if u:
-<<<<<<< HEAD
         session["user_id"]    = u["id"]
         session["role"]       = u["role"]
         session["full_name"]  = u["full_name"] or u["email"]
@@ -1710,15 +1705,6 @@ def _refresh_session(user_id: int) -> None:
         session["email"]      = u["email"]
         session["can_worker"] = bool(u.get("can_worker"))
         session["can_employer"] = bool(u.get("can_employer"))
-=======
-        session["user_id"]     = u["id"]
-        session["role"]        = u["role"]
-        session["full_name"]   = u["full_name"] or u["email"]
-        session["connects"]    = int(u["connects_balance"])
-        session["profile_ok"]  = bool(u["profile_complete"])
-        session["email"]       = u["email"]
-        session["notif_count"] = int(u["unread_notifs"])
->>>>>>> 9105e6ac7d92af4ee8dcc9545171b9e3da01f270
 
 
 # ── Decorators ─────────────────────────────────────────────────────────────────
@@ -2922,14 +2908,11 @@ def complete_profile():
 @worker_required
 def worker_dashboard():
     uid = session["user_id"]
-<<<<<<< HEAD
     # Grant monthly bonus if eligible
     bonus_granted = _grant_monthly_bonus(uid)
     if bonus_granted:
         push_notif(uid, f"Bonus! You've earned {MONTHLY_BONUS_CONNECTS} free connects for this month.")
     _refresh_session(uid)
-=======
->>>>>>> 9105e6ac7d92af4ee8dcc9545171b9e3da01f270
     user = STORE.query_one(f"SELECT * FROM {STORE.t('users')} WHERE id=%s", (uid,))
     recent_apps = STORE.query_all(
         f"SELECT a.*, j.title, j.category, j.budget_usd, j.job_type, j.status as job_status, j.is_robot, rw.awarded_at "
@@ -2939,7 +2922,6 @@ def worker_dashboard():
         f"WHERE a.user_id=%s ORDER BY a.applied_at DESC LIMIT 5",
         (uid,),
     )
-<<<<<<< HEAD
     
     # AUTO-UPDATE ROBOT JOB APPLICATION STATUSES
     # When a robot job is awarded, automatically mark pending applications as rejected
@@ -2957,13 +2939,6 @@ def worker_dashboard():
             a["display_status"] = "closed"
     notifs = _prepare_notifications(STORE.query_all(
         f"SELECT * FROM {STORE.t('notifications')} WHERE user_id=%s ORDER BY created_at DESC LIMIT 5", (uid,)))
-=======
-    notifs = STORE.query_all(
-        f"SELECT * FROM {STORE.t('notifications')} WHERE user_id=%s ORDER BY created_at DESC LIMIT 10", (uid,))
-    if notifs:
-        STORE.execute(f"UPDATE {STORE.t('notifications')} SET is_read=1 WHERE user_id=%s", (uid,))
-        session["notif_count"] = 0
->>>>>>> 9105e6ac7d92af4ee8dcc9545171b9e3da01f270
     return render_template("worker/dashboard.html", user=user, recent_apps=recent_apps, notifs=notifs)
 
 
@@ -3494,12 +3469,9 @@ def worker_report_job():
 @worker_required
 def worker_buy_connects():
     uid = session["user_id"]
-<<<<<<< HEAD
     # Grant monthly bonus if eligible
     _grant_monthly_bonus(uid)
     _refresh_session(uid)
-=======
->>>>>>> 9105e6ac7d92af4ee8dcc9545171b9e3da01f270
     history = STORE.query_all(
         f"SELECT * FROM {STORE.t('payments')} WHERE user_id=%s ORDER BY created_at DESC LIMIT 20", (uid,))
     return render_template("worker/buy_connects.html",
@@ -5614,7 +5586,6 @@ def admin_logout():
 @app.route("/admin")
 @admin_required
 def admin_dashboard():
-<<<<<<< HEAD
     users_count   = (STORE.query_one(f"SELECT COUNT(*) as c FROM {STORE.t('users')}") or {}).get("c", 0)
     workers_count = (STORE.query_one(f"SELECT COUNT(*) as c FROM {STORE.t('users')} WHERE role='worker'") or {}).get("c", 0)
     emp_count     = (STORE.query_one(f"SELECT COUNT(*) as c FROM {STORE.t('users')} WHERE role='employer'") or {}).get("c", 0)
@@ -5629,20 +5600,18 @@ def admin_dashboard():
     revenue_usd   = float(revenue_row["r"]) if revenue_row else 0.0
     pending_disb  = (STORE.query_one(f"SELECT COUNT(*) as c FROM {STORE.t('employer_payments')} WHERE status='pending'") or {}).get("c", 0)
     recent_pays   = STORE.query_all(
-=======
-    stats = STORE.query_one(
-        f"SELECT "
-        f"  (SELECT COUNT(*) FROM {STORE.t('users')}) as users_count, "
-        f"  (SELECT COUNT(*) FROM {STORE.t('users')} WHERE role='worker') as workers_count, "
-        f"  (SELECT COUNT(*) FROM {STORE.t('users')} WHERE role='employer') as emp_count, "
-        f"  (SELECT COUNT(*) FROM {STORE.t('jobs')}) as jobs_count, "
-        f"  (SELECT COUNT(*) FROM {STORE.t('jobs')} WHERE is_robot=1) as robot_count, "
-        f"  (SELECT COUNT(*) FROM {STORE.t('applications')}) as apps_count, "
-        f"  (SELECT COALESCE(SUM(amount_usd),0) FROM {STORE.t('payments')} WHERE status='confirmed') as revenue_usd, "
-        f"  (SELECT COUNT(*) FROM {STORE.t('employer_payments')} WHERE status='pending') as pending_disb"
-    ) or {}
-    recent_pays = STORE.query_all(
->>>>>>> 9105e6ac7d92af4ee8dcc9545171b9e3da01f270
+        f"SELECT p.*, u.email FROM {STORE.t('payments')} p JOIN {STORE.t('users')} u ON u.id=p.user_id "
+        f"ORDER BY p.created_at DESC LIMIT 10")
+    stats = {
+        "users_count": users_count,
+        "workers_count": workers_count,
+        "emp_count": emp_count,
+        "jobs_count": jobs_count,
+        "robot_count": robot_count,
+        "apps_count": apps_count,
+        "revenue_usd": revenue_usd,
+        "pending_disb": pending_disb
+    }
         f"SELECT p.*, u.email FROM {STORE.t('payments')} p JOIN {STORE.t('users')} u ON u.id=p.user_id "
         f"ORDER BY p.created_at DESC LIMIT 10")
     return render_template("admin/dashboard.html",
