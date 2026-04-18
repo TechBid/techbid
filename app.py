@@ -1587,17 +1587,41 @@ def _ramp_simulated_count(elapsed_minutes: int, start_minutes: int, end_minutes:
 
 
 def _get_max_simulated_applicants(category: str) -> int:
-    """Get max simulated applicants based on job category difficulty."""
-    # Toughest categories: max 5 applicants (hard to get hired, less competition)
-    toughest = {"Game Development", "Machine Learning / AI", "Cybersecurity"}
+    """Get max simulated applicants based on job category difficulty and specialization."""
+    
+    # TOUGHEST (max 5): High specialization, years of expertise required
+    toughest = {
+        "Game Development",
+        "Machine Learning / AI",
+        "Cybersecurity",
+        "DevOps & Cloud",
+        "Database Administration",
+        "Blockchain & Web3",
+    }
     if category in toughest:
         return 5
     
-    # Simpler category: max 20 applicants (high competition)
-    if category == "Virtual Assistance":
+    # SIMPLER (max 20): Low barrier to entry, broad talent pool
+    simpler = {
+        "Content Writing & Copywriting",
+        "Animation & Motion Graphics",
+        "Virtual Assistance",
+        "Customer Support",
+        "Project Management",
+        "SEO & Digital Marketing",
+        "Photo Editing",
+        "Email Marketing",
+        "Sales & Lead Generation",
+        "Social Media Management",
+    }
+    if category in simpler:
         return 20
     
-    # Default for other categories: max 13 applicants
+    # MEDIUM (max 13): Professional skills, moderate barrier to entry
+    # (Web Development, Mobile Development, UI/UX Design, Data Science & Analytics,
+    #  Technical Writing, Quality Assurance & Testing, E-commerce & Shopify,
+    #  WordPress Development, Business Analysis, Graphic Design, Video Editing,
+    #  Translation & Localization, Accounting & Finance, Legal Services)
     return 13
 
 
