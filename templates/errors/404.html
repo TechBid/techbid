@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}Page Not Found — TechBid{% endblock %}
+{% block body %}
+<div class="page-wrap" style="text-align:center;">
+  <div class="container" style="max-width:480px;">
+    <div style="font-size:5rem;line-height:1;margin-bottom:16px;">404</div>
+    <h1>Page not found</h1>
+    <p class="mt-1">The page you're looking for doesn't exist or has been moved.</p>
+    <a href="{{ url_for('index') }}" class="btn btn-primary mt-3">Go Home</a>
+  </div>
+</div>
+{% endblock %}

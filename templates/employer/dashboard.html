@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+{% block title %}Employer Dashboard — TechBid{% endblock %}
+{% block body %}
+<div class="page-wrap">
+<div class="container">
+  <div class="layout-2col">
+    <aside class="sidebar">
+      <ul class="sidebar-nav">
+        <li><a href="{{ url_for('employer_dashboard') }}" class="{{ 'active' if request.endpoint=='employer_dashboard' }}">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg> Dashboard</a></li>
+        <li><a href="{{ url_for('employer_post_job') }}">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> Post a Job</a></li>
+        <li><a href="{{ url_for('employer_payments') }}">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 11a4 4 0 1 1-8 0"/></svg> Payments</a></li>
+        <li><a href="{{ url_for('employer_pricing') }}">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> View Plans</a></li>
+        <li><a href="{{ url_for('complete_profile') }}">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> My Profile</a></li>
+        <li><a href="{{ url_for('contact') }}">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> Contact Us</a></li>
+      </ul>
+    </aside>
+    <main>
+      <div class="page-header">
+        <h1>Employer Dashboard</h1>
+        <div style="display:flex;align-items:center;gap:12px;">
+          <p style="margin:0;">{{ user.full_name or user.email }}{% if ep and ep.company_name %} · {{ ep.company_name }}{% endif %}</p>
+          {% if current_sub and current_sub.tier %}
+          <span style="display:inline-block;padding:4px 12px;border-radius:16px;font-size:0.85rem;font-weight:600;color:white;background:{% if current_sub.tier == 'basic' %}#FF9800{% elif current_sub.tier == 'pro' %}#9C27B0{% else %}#2196F3{% endif %};">
+            {{ current_sub.tier | capitalize }}
+          </span>
+          {% endif %}
+        </div>
+      </div>
+
+      {% if not is_subscribed %}
+      <div class="alert alert-warning">
+        <strong>Subscription required.</strong> Subscribe to post jobs and access applicants.
+        <a href="{{ url_for('employer_pricing') }}" class="btn btn-primary btn-sm" style="margin-left:12px;display:inline-block;text-decoration:none;">View Plans</a>
+      </div>
+      {% else %}
+      <div class="alert alert-success">
+        ✓ Subscription active. 
+        {% set days_left = ((ep.subscription_expires_at - now).total_seconds() / 86400) | int if ep and ep.subscription_expires_at else 0 %}
+        {% if days_left <= 30 %}
+        <strong style="color:var(--orange);">Free trial</strong> ends {{ ep.subscription_expires_at.strftime('%b %d, %Y') if ep and ep.subscription_expires_at else 'soon' }}. 
+        <a href="{{ url_for('employer_pricing') }}" class="btn btn-primary btn-sm" style="margin-left:12px;display:inline-block;text-decoration:none;">Upgrade Plan</a>
+        {% else %}
+        Expires {{ ep.subscription_expires_at.strftime('%b %d, %Y') if ep and ep.subscription_expires_at else 'N/A' }}.
+        {% endif %}
+      </div>
+      {% endif %}
+
+      <div class="stats-grid mb-3">
+        <div class="stat-card">
+          <div class="stat-label">Active Jobs</div>
+          <div class="stat-value">{{ my_jobs | selectattr('status','eq','open') | list | length }}</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Total Jobs</div>
+          <div class="stat-value">{{ my_jobs | length }}</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Pending Payments</div>
+          <div class="stat-value text-warning">{{ pending_pays | length }}</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Status</div>
+          <div class="stat-value" style="font-size:.95rem;">{{ 'Active' if is_subscribed else 'Inactive' }}</div>
+        </div>
+      </div>
+
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+        <h2 class="section-title" style="margin:0;">My Jobs</h2>
+        {% if is_subscribed %}
+        <a href="{{ url_for('employer_post_job') }}" class="btn btn-primary btn-sm">+ Post New Job</a>
+        {% endif %}
+      </div>
+
+      {% if my_jobs %}
+      {% for job in my_jobs %}
+      <div class="job-card" style="cursor:pointer; position:relative;" onclick="if(event.target.closest('a, button')) return; goToJob({{ job.id }})">
+        <div class="job-card-header">
+          <div style="flex:1;">
+            <div class="job-title">{{ job.title }}</div>
+            <div class="job-meta">
+              <span>{{ job.category }}</span>
+              <span>${{ "%.0f"|format(job.budget_usd) }}</span>
+              <span>{{ job.app_count }} applicant{{ 's' if job.app_count != 1 }}</span>
+            </div>
+          </div>
+          <div style="display:flex; gap:8px; align-items:center;">
+            <span class="job-badge {{ 'badge-open' if job.status=='open' else 'badge-closed' }}">{{ job.status | capitalize }}</span>
+            {% if job.status == 'closed' %}
+            <a href="{{ url_for('contract_room', job_id=job.id) }}" class="btn btn-primary btn-sm" style="background:var(--blue); margin:0;" onclick="event.stopPropagation();">Contract Room</a>
+            {% else %}
+            <a href="{{ url_for('employer_applicants', job_id=job.id) }}" class="btn btn-secondary btn-sm" style="margin:0;" onclick="event.stopPropagation();">View Applicants</a>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+      {% else %}
+      <div class="empty-state">
+        <p>No jobs posted yet.</p>
+        {% if is_subscribed %}<a href="{{ url_for('employer_post_job') }}" class="btn btn-primary mt-2">Post your first job</a>{% endif %}
+      </div>
+      {% endif %}
+    </main>
+  </div>
+</div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+function goToJob(jobId) {
+  window.location.href = '/employer/jobs/' + jobId;
+}
+
+function subscribe() {
+  const btn = document.getElementById('subscribe-btn');
+  if (btn) btn.disabled = true;
+  fetch('/employer/subscribe', {
+    method:'POST',
+    headers:{'Content-Type':'application/json','X-CSRF-Token':'{{ csrf_token() }}'},
+    body: JSON.stringify({provider:'paystack'})
+  }).then(r=>r.json()).then(data=>{
+    if (data.redirect_url) window.location.href = data.redirect_url;
+    else { alert(data.error || 'Payment error'); if(btn) btn.disabled=false; }
+  });
+}
+</script>
+{% endblock %}

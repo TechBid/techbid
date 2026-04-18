@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}Simulated Applicant Names — Admin{% endblock %}
+{% block body %}
+<div class="page-wrap"><div class="container">
+  <div class="layout-2col">
+    <aside class="sidebar"><ul class="sidebar-nav">
+      <li><a href="{{ url_for('admin_dashboard') }}">Dashboard</a></li>
+      <li><a href="{{ url_for('admin_jobs') }}">Jobs</a></li>
+      <li><a href="{{ url_for('admin_users') }}">Users</a></li>
+      <li><a href="{{ url_for('admin_payments') }}">Payments</a></li>
+      <li><a href="{{ url_for('admin_create_robot_job') }}">Create Robot Job</a></li>
+      <li><a href="{{ url_for('admin_robot_names') }}" class="active">Simulated Names</a></li>
+    </ul></aside>
+    <main>
+      <div class="page-header">
+        <h1>Simulated Applicant Names</h1>
+        <p>Manage names used for robot interview shortlists and top shortlisted profiles.</p>
+      </div>
+
+      <div class="card mb-3">
+        <h2 class="section-title">Add Names (one per line)</h2>
+        <form method="POST">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <textarea name="names_bulk" class="form-textarea" rows="6" placeholder="Aisha M.&#10;Kenji S.&#10;Lucas R." required></textarea>
+          <button type="submit" class="btn btn-primary mt-2">Add to Pool</button>
+        </form>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Name</th><th>Status</th><th>Added</th><th>Actions</th></tr></thead>
+          <tbody>
+            {% for n in names %}
+            <tr>
+              <td>{{ n.display_name }}</td>
+              <td>
+                <span class="job-badge {{ 'badge-open' if n.is_active else 'badge-closed' }}">
+                  {{ 'active' if n.is_active else 'inactive' }}
+                </span>
+              </td>
+              <td class="text-sm text-muted">{{ n.created_at.strftime('%Y-%m-%d') if n.created_at else '' }}</td>
+              <td style="display:flex;gap:8px;">
+                <form method="POST" action="{{ url_for('admin_robot_name_toggle', name_id=n.id) }}">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <button type="submit" class="btn btn-secondary btn-sm">{{ 'Disable' if n.is_active else 'Enable' }}</button>
+                </form>
+                <form method="POST" action="{{ url_for('admin_robot_name_delete', name_id=n.id) }}" onsubmit="return confirm('Delete this name?');">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+                </form>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </main>
+  </div>
+</div></div>
+{% endblock %}

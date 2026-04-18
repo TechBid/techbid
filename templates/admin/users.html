@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% block title %}Users — Admin{% endblock %}
+{% block body %}
+<div class="page-wrap"><div class="container">
+  <div class="layout-2col">
+    <aside class="sidebar"><ul class="sidebar-nav">
+      <li><a href="{{ url_for('admin_dashboard') }}">Dashboard</a></li>
+      <li><a href="{{ url_for('admin_jobs') }}">Jobs</a></li>
+      <li><a href="{{ url_for('admin_users') }}" class="active">Users</a></li>
+      <li><a href="{{ url_for('admin_payments') }}">Payments</a></li>
+    </ul></aside>
+    <main>
+      <div class="page-header"><h1>All Users ({{ users|length }})</h1></div>
+
+      <div class="card mb-3">
+        <h2 class="section-title">Gift Free Connects</h2>
+        <form method="POST" action="{{ url_for('admin_gift_connects') }}" class="layout-2col" style="grid-template-columns: 1fr 1fr auto; gap: 1rem; align-items: end;">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <div class="form-group mb-0">
+            <label class="form-label" for="gift-worker-email">Worker Email</label>
+            <input id="gift-worker-email" type="email" name="email" class="form-input" placeholder="worker@example.com" required>
+          </div>
+          <div class="form-group mb-0">
+            <label class="form-label" for="gift-worker-amount">Amount</label>
+            <input id="gift-worker-amount" type="number" name="amount" class="form-input" placeholder="e.g. 50" required min="1">
+          </div>
+          <button type="submit" class="btn btn-primary">Gift Connects</button>
+        </form>
+      </div>
+
+      <div class="card mb-3">
+        <h2 class="section-title">Gift Employer Subscription</h2>
+        <form method="POST" action="{{ url_for('admin_gift_subscription') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <div style="display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 1rem; align-items: end;">
+            <div class="form-group mb-0">
+              <label class="form-label" for="gift-employer-email">Employer Email</label>
+              <input id="gift-employer-email" type="email" name="email" class="form-input" placeholder="employer@example.com" required>
+            </div>
+            <div class="form-group mb-0">
+              <label class="form-label" for="gift-subscription-tier">Subscription Tier</label>
+              <select id="gift-subscription-tier" name="tier" class="form-select" required>
+                <option value="">Select tier...</option>
+                <option value="basic">Basic ($8/mo, 10 jobs)</option>
+                <option value="pro">Pro ($18/mo, unlimited + AI)</option>
+              </select>
+            </div>
+            <div class="form-group mb-0">
+              <label class="form-label" for="gift-duration-days">Duration (days)</label>
+              <input id="gift-duration-days" type="number" name="days" class="form-input" placeholder="30" value="30" min="1">
+            </div>
+            <button type="submit" class="btn btn-primary">Gift Subscription</button>
+          </div>
+        </form>
+      </div>
+
+      <h2 class="section-title">Users List</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Connects / Subscription</th><th>Country</th><th>Joined</th></tr></thead>
+          <tbody>
+          {% for u in users %}
+          <tr>
+            <td>{{ u.full_name or '—' }}</td>
+            <td class="text-sm">{{ u.email }}</td>
+            <td><span class="job-badge {{ 'badge-real' if u.role=='employer' else 'badge-open' }}">{{ u.role }}</span></td>
+            <td class="text-sm">
+              {% if u.role == 'worker' %}
+              <span class="text-green fw-600">{{ u.connects_balance }} connects</span>
+              {% else %}
+              {% if u.is_subscribed %}
+              <span class="text-green fw-600">✓ Active</span><br>
+              <span class="text-muted" style="font-size:.8rem;">Expires: {{ u.subscription_expires_at.strftime('%b %d, %Y') if u.subscription_expires_at else 'N/A' }}</span>
+              {% else %}
+              <span class="text-muted">No subscription</span>
+              {% endif %}
+              {% endif %}
+            </td>
+            <td class="text-sm">{{ u.country or '—' }}</td>
+            <td class="text-sm text-muted">{{ u.created_at.strftime('%b %d, %Y') if u.created_at else '' }}</td>
+          </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </main>
+  </div>
+</div></div>
+{% endblock %}

@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Privacy Policy — TechBid{% endblock %}
+{% block body %}
+<div class="page-wrap"><div class="container" style="max-width:920px;">
+  <div class="page-header">
+    <h1>Privacy Policy</h1>
+    <p>This policy explains how TechBid collects, uses, and protects personal information. This is a general template and should be reviewed before production use.</p>
+  </div>
+  <div class="card">
+    <h2 class="section-title">Information we collect</h2>
+    <ul class="text-sm" style="line-height:1.9;">
+      <li>Account details (email, role, profile information)</li>
+      <li>Marketplace activity (job posts, applications, messages)</li>
+      <li>Payment and transaction metadata from payment providers</li>
+      <li>Basic technical data (device, logs, security events)</li>
+    </ul>
+
+    <h2 class="section-title mt-2">How we use information</h2>
+    <ul class="text-sm" style="line-height:1.9;">
+      <li>Provide and improve the platform</li>
+      <li>Secure accounts and prevent abuse</li>
+      <li>Process transactions and maintain records</li>
+      <li>Communicate service updates and support responses</li>
+    </ul>
+
+    <h2 class="section-title mt-2">Your choices</h2>
+    <p class="text-sm text-muted">You may request access, correction, or deletion of certain data where applicable. See <a href="{{ url_for('privacy_choices') }}">Your privacy choices</a>.</p>
+  </div>
+</div></div>
+{% endblock %}

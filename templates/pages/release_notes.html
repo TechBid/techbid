@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}Release Notes — TechBid{% endblock %}
+{% block body %}
+<div class="page-wrap"><div class="container" style="max-width:920px;">
+  <div class="page-header">
+    <h1>Release notes</h1>
+    <p>What’s new and improved in recent updates.</p>
+  </div>
+  <div class="card">
+    <h2 class="section-title">Recent updates</h2>
+    <ul class="text-sm" style="line-height:1.9;">
+      <li>Performance improvements and UI polish</li>
+      <li>Better notifications experience</li>
+      <li>Admin tooling enhancements</li>
+      <li>Security and stability fixes</li>
+    </ul>
+    <p class="text-sm text-muted">Have suggestions? Send them via <a href="{{ url_for('feedback') }}">Feedback</a>.</p>
+  </div>
+</div></div>
+{% endblock %}

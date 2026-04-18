@@ -1,0 +1,185 @@
+{% extends "base.html" %}
+{% block title %}Post a Job — TechBid{% endblock %}
+{% block body %}
+<div class="page-wrap">
+<div class="container" style="max-width:680px;">
+  <div class="page-header"><h1>Post a Job</h1><p>Fill in the details below. Your job will be live immediately.</p></div>
+  
+  <!-- Subscription Status Info -->
+  {% if sub_info %}
+    {% if sub_info.has_subscription %}
+      <div style="background:var(--bg-secondary);border-left:4px solid var(--success);padding:16px;margin-bottom:24px;border-radius:4px;">
+        <p style="margin:0;color:var(--text-primary);"><strong>{{ sub_info.tier | capitalize }} Plan Active</strong></p>
+        <p style="margin:8px 0 0 0;color:var(--text-muted);font-size:0.9rem;">
+          {% if sub_info.job_limit %}
+            {{ sub_info.jobs_posted_this_month }}/{{ sub_info.job_limit }} jobs posted this month
+          {% else %}
+            Unlimited jobs per month
+          {% endif %}
+        </p>
+        {% if sub_info.tier == 'pro' %}
+          <p style="margin:8px 0 0 0;color:var(--text-muted);font-size:0.9rem;display:flex;align-items:center;gap:6px;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+            </svg>
+            AI-powered descriptions available
+          </p>
+        {% endif %}
+      </div>
+    {% else %}
+      <div style="background:var(--bg-secondary);border-left:4px solid #FF9800;padding:16px;margin-bottom:24px;border-radius:4px;">
+        <p style="margin:0;color:var(--text-primary);"><strong>Pay-As-You-Go ($2.99 per job)</strong></p>
+        <p style="margin:8px 0 0 0;color:var(--text-muted);font-size:0.9rem;">No subscription required. You'll be prompted to pay when posting this job.</p>
+        <p style="margin:8px 0 0 0;color:var(--text-muted);font-size:0.9rem;">💡 <a href="{{ url_for('employer_pricing') }}" style="color:var(--primary);text-decoration:none;">View plans</a> to save on bulk posting</p>
+      </div>
+    {% endif %}
+  {% endif %}
+
+  <form method="POST" id="post-job-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="form-group">
+      <label class="form-label" for="title">Job title *</label>
+      <input id="title" type="text" name="title" class="form-input" required placeholder="e.g. Senior React Developer needed">
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label" for="category">Category *</label>
+        <select id="category" name="category" class="form-select" required>
+          <option value="">— Select —</option>
+          {% for c in categories %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="job_type">Job type *</label>
+        <select id="job_type" name="job_type" class="form-select" required>
+          {% for t in job_types %}<option value="{{ t }}">{{ t | capitalize }}</option>{% endfor %}
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label" for="budget_usd">Budget (USD) *</label>
+        <input id="budget_usd" type="number" name="budget_usd" class="form-input" min="1" step="0.01" required placeholder="e.g. 500">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="duration">Duration</label>
+        <input id="duration" type="text" name="duration" class="form-input" placeholder="e.g. 2 weeks, 1 month">
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label" for="description">Job description *</label>
+      <textarea id="description" name="description" class="form-textarea" rows="7" required
+                placeholder="Describe the role, responsibilities, required skills, and any other details…"></textarea>
+    </div>
+
+    <!-- AI Enhancement Option (Pro tier only) -->
+    {% if sub_info and sub_info.tier == 'pro' %}
+    <div class="form-group" style="background:var(--bg-secondary);padding:12px;border-radius:4px;margin-bottom:16px;">
+      <label style="display:flex;align-items:center;cursor:pointer;margin:0;">
+        <input type="checkbox" name="use_ai" value="true" style="margin-right:8px;">
+        <span style="color:var(--text-primary);display:flex;align-items:center;gap:6px;"><strong><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+            </svg> Enhance description with AI</strong></span>
+      </label>
+      <p style="margin:8px 0 0 0;color:var(--text-muted);font-size:0.9rem;">AI will improve clarity, structure, and professionalism of your job description</p>
+    </div>
+    {% endif %}
+
+    <!-- Submit Button -->
+    <button type="submit" id="post-btn" class="btn btn-primary btn-block">
+      {% if sub_info and sub_info.has_subscription %}
+        Post Job
+      {% else %}
+        Post Job ($2.99)
+      {% endif %}
+    </button>
+  </form>
+
+  <!-- Pay-As-You-Go Payment Form (hidden, submitted via AJAX for PAYG users) -->
+  <div id="payg-modal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:1000;align-items:center;justify-content:center;">
+    <div style="background:var(--surface);padding:24px;border-radius:8px;max-width:400px;width:90%;">
+      <h3 style="margin-top:0;">Complete Payment</h3>
+      <p style="color:var(--text-muted);">You'll be redirected to pay $2.99 for this job posting</p>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <button type="button" class="btn" onclick="closePaygModal()" style="background:#e0e0e0;">Cancel</button>
+        <button type="button" class="btn btn-primary" onclick="submitPaygPayment()">Proceed to Payment</button>
+      </div>
+    </div>
+  </div>
+
+  <style>
+    #payg-modal[style*="display:flex"] {
+      display: flex !important;
+    }
+  </style>
+
+  <script>
+    let pendingJobData = null;
+
+    document.getElementById('post-job-form').addEventListener('submit', async function(e) {
+      e.preventDefault();
+      
+      const hasSubscription = {{ 'true' if sub_info and sub_info.has_subscription else 'false' }};
+      
+      if (!hasSubscription) {
+        // Store form data and show payment modal for PAYG
+        pendingJobData = {
+          title: document.getElementById('title').value,
+          description: document.getElementById('description').value,
+          category: document.getElementById('category').value,
+          job_type: document.getElementById('job_type').value,
+          budget_usd: document.getElementById('budget_usd').value,
+          duration: document.getElementById('duration').value,
+          use_ai: document.querySelector('input[name="use_ai"]')?.checked ? 'true' : 'false',
+        };
+        document.getElementById('payg-modal').style.display = 'flex';
+      } else {
+        // Direct submit for subscription users
+        this.submit();
+      }
+    });
+
+    function closePaygModal() {
+      document.getElementById('payg-modal').style.display = 'none';
+      pendingJobData = null;
+    }
+
+    async function submitPaygPayment() {
+      const form = document.getElementById('post-job-form');
+      const btn = form.querySelector('button[type="submit"]');
+      btn.disabled = true;
+      btn.textContent = '⏳ Processing payment...';
+
+      try {
+        const response = await fetch('/employer/buy-single-job', {
+          method: 'POST',
+          headers: {
+            'X-CSRF-Token': document.querySelector('input[name="csrf_token"]').value,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({})
+        });
+
+        const data = await response.json();
+        
+        if (data.redirect_url) {
+          // Store job data in session storage before redirect
+          sessionStorage.setItem('pendingJobData', JSON.stringify(pendingJobData));
+          window.location.href = data.redirect_url;
+        } else {
+          alert(data.error || 'Payment initialization failed');
+          closePaygModal();
+          btn.disabled = false;
+          btn.textContent = 'Post Job ($2.99)';
+        }
+      } catch (err) {
+        alert('Error: ' + err.message);
+        closePaygModal();
+        btn.disabled = false;
+        btn.textContent = 'Post Job ($2.99)';
+      }
+    }
+  </script>
+</div>
+</div>
+{% endblock %}

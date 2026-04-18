@@ -1,0 +1,769 @@
+{% extends "base.html" %}
+{% block title %}Contract Room - {{ job.title }} - TechBid{% endblock %}
+{% block body %}
+<div class="page-wrap">
+<div class="container" style="max-width:900px;">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+    {% if session.get('role') == 'worker' %}
+    <a href="{{ url_for('worker_dashboard') }}" class="text-muted text-sm" style="display:inline-flex;gap:6px;">&larr; Back to dashboard</a>
+    {% else %}
+    <a href="{{ url_for('employer_dashboard') }}" class="text-muted text-sm" style="display:inline-flex;gap:6px;">&larr; Back to dashboard</a>
+    {% endif %}
+    <div style="display:flex;gap:8px;">
+      {% if not is_employer and contract and contract.status in ['funded', 'in_progress'] and contract.status != 'under_review' %}
+      <button id="work-submit-btn" class="btn btn-primary btn-sm">Submit Work</button>
+      {% endif %}
+      {% if session.get('role') == 'employer' and is_employer %}
+      <form method="POST" action="#" style="display:inline;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="button" class="btn btn-secondary btn-sm" onclick="alert('Contract ending and reviews will be built in the next update!')">End Contract Lifecycle</button>
+      </form>
+      {% endif %}
+    </div>
+  </div>
+
+  {% if contract %}
+    {% if session.get('role') == 'employer' and is_employer and offer_can_be_sent %}
+    <div class="card" style="padding:16px;margin-bottom:16px;background:#fff7e6;border-left:4px solid #ff9800;" data-contract-alert="pending-offer">
+      <h3 style="margin:0 0 8px 0;color:#8a5a00;">{{ 'Send a revised offer' if offer_rejected else 'Send contract offer' }}</h3>
+      <p style="margin:0 0 12px 0;color:#8a5a00;font-size:0.95rem;">
+        Confirm the final amount you want held in escrow. The freelancer must accept before funding is allowed.
+      </p>
+      <form method="POST" action="{{ url_for('contract_send_offer', contract_id=contract.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div style="display:grid;grid-template-columns:minmax(180px,240px) 1fr auto;gap:10px;align-items:end;flex-wrap:wrap;">
+          <div>
+            <label class="form-label" style="color:black;" for="contract-amount">Contract Amount (USD)</label>
+            <input id="contract-amount" type="number" name="amount_usd" class="form-input" min="1" step="0.01" value="{{ '%.2f'|format(contract.price_usd or 0) }}">
+          </div>
+          <div>
+            <label class="form-label" style="color:black;" for="offer-note">Offer Note <span class="text-muted">(optional)</span></label>
+            <input id="offer-note" type="text" name="offer_note" class="form-input" maxlength="500" value="{{ contract.offer_note or '' }}" placeholder="Short note about the agreed scope or pricing">
+          </div>
+          <button type="submit" class="btn btn-primary btn-sm" id="send-offer-btn">{{ 'Send Revised Offer' if offer_rejected else 'Send Offer' }}</button>
+        </div>
+      </form>
+      {% if offer_rejected %}
+      <small style="display:block;color:#8a5a00;margin-top:8px;">The previous offer was declined. Continue negotiating in chat, then send a new amount.</small>
+      {% endif %}
+    </div>
+    {% elif session.get('role') == 'employer' and is_employer and awaiting_freelancer_response %}
+    <div class="card" style="padding:16px;margin-bottom:16px;background:#fff7e6;border-left:4px solid #ff9800;" data-contract-alert="awaiting-response">
+      <h3 style="margin:0 0 8px 0;color:#8a5a00;">Offer Sent</h3>
+      <p style="margin:0;color:#8a5a00;font-size:0.95rem;">
+        Waiting for {{ other_party.full_name or 'the freelancer' }} to accept the escrow amount of
+        <strong>${{ "%.2f"|format(contract.price_usd) }}</strong>.
+      </p>
+      {% if contract.offer_note %}<small style="display:block;color:#8a5a00;margin-top:8px;">Note: {{ contract.offer_note }}</small>{% endif %}
+    </div>
+    {% elif not is_employer and awaiting_employer_offer %}
+    <div class="card" style="padding:16px;margin-bottom:16px;background:#eef4ff;border-left:4px solid #4d8df7;">
+      <h3 style="margin:0 0 8px 0;color:#1e4fa3;">Waiting for Employer Offer</h3>
+      <p style="margin:0;color:#1e4fa3;font-size:0.95rem;">Use the chat to agree on price. The employer will send the formal escrow amount here once you're aligned.</p>
+    </div>
+    {% elif not is_employer and awaiting_freelancer_response %}
+    <div class="card" style="padding:16px;margin-bottom:16px;background:#eef4ff;border-left:4px solid #4d8df7;">
+      <h3 style="margin:0 0 8px 0;color:#1e4fa3;">Review Contract Offer</h3>
+      <p style="margin:0 0 12px 0;color:#1e4fa3;font-size:0.95rem;">
+        The employer is requesting <strong>${{ "%.2f"|format(contract.price_usd) }}</strong> for this contract.
+        Accept only if this matches what you agreed in chat.
+      </p>
+      {% if contract.offer_note %}<div class="text-sm" style="margin-bottom:12px;color:#1e4fa3;">Note: {{ contract.offer_note }}</div>{% endif %}
+      <div style="display:flex;gap:10px;flex-wrap:wrap;">
+        <form method="POST" action="{{ url_for('contract_respond_offer', contract_id=contract.id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="action" value="accept">
+          <button type="submit" class="btn btn-primary btn-sm">Accept Offer</button>
+        </form>
+        <form method="POST" action="{{ url_for('contract_respond_offer', contract_id=contract.id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="action" value="reject">
+          <button type="submit" class="btn btn-secondary btn-sm">Decline Offer</button>
+        </form>
+      </div>
+    </div>
+    {% elif session.get('role') == 'employer' and is_employer and offer_accepted %}
+    <div class="card" style="padding:16px;margin-bottom:16px;background:#fff3cd;border-left:4px solid #ff9800;" data-contract-alert="offer-accepted">
+      <h3 style="margin:0 0 8px 0;color:#856404;">Fund Escrow to Start Work</h3>
+      <p style="margin:0 0 12px 0;color:#856404;font-size:0.95rem;">The freelancer accepted your offer. Fund the agreed escrow amount of <strong>${{ "%.2f"|format(contract.price_usd) }}</strong> to activate the contract.</p>
+      <p class="text-sm text-muted" style="margin:0 0 12px 0;">Rate: 1 USD ≈ 129 KES.</p>
+      <div style="margin-top:12px;">
+        <button type="button" onclick="initFundEscrow('paystack', {{ contract.id }})" class="btn btn-primary btn-sm" id="fund-escrow-btn" style="position:relative;" data-loading="false">
+          <span id="fund-escrow-btn-text">Fund Escrow</span>
+          <span id="fund-escrow-btn-loader" style="display:none;margin-left:6px;">Processing...</span>
+        </button>
+      </div>
+      <small style="color:#856404;margin-top:12px;display:block;">Funding stays locked until delivery and review.</small>
+    </div>
+    {% elif not is_employer and offer_accepted %}
+    <div class="card" style="padding:16px;margin-bottom:16px;background:#eef4ff;border-left:4px solid #4d8df7;">
+      <h3 style="margin:0 0 8px 0;color:#1e4fa3;">Offer Accepted</h3>
+      <p style="margin:0;color:#1e4fa3;font-size:0.95rem;">You accepted <strong>${{ "%.2f"|format(contract.price_usd) }}</strong>. The employer must now fund escrow before work starts.</p>
+    </div>
+    {% elif not is_employer and offer_rejected %}
+    <div class="card" style="padding:16px;margin-bottom:16px;background:#fff7e6;border-left:4px solid #ff9800;">
+      <h3 style="margin:0 0 8px 0;color:#8a5a00;">Offer Declined</h3>
+      <p style="margin:0;color:#8a5a00;font-size:0.95rem;">You declined the last offer. Keep negotiating in chat while waiting for a revised amount.</p>
+    </div>
+    {% elif contract_funded %}
+    <div class="card" style="padding:12px;margin-bottom:16px;background:#e8f5e9;border-left:4px solid #4caf50;" data-contract-alert="funded">
+      <small style="color:#2e7d32;"><strong>Escrow Funded</strong> - Work can proceed. The freelancer can now deliver the agreed work for review.</small>
+    </div>
+    {% endif %}
+  {% endif %}
+
+  <div class="layout-2col" style="grid-template-columns: 280px 1fr; gap:20px;">
+    <aside class="sidebar">
+      <div class="card" style="padding:16px;">
+        <h2 style="font-size:1.1rem;margin-bottom:8px;">Contract Details</h2>
+        <div class="text-sm fw-600">{{ job.title }}</div>
+        <div class="job-meta mt-1">
+          <span>${{ "%.0f"|format(job.budget_usd) }}</span>
+          <span class="job-badge badge-real">{{ job.status | capitalize }}</span>
+        </div>
+        {% if contract %}
+        <hr class="divider" style="margin:16px 0;">
+        <div style="margin-bottom:8px;"><label class="text-xs text-muted">CONTRACT STATUS</label></div>
+        <div style="display:inline-block;padding:4px 12px;border-radius:6px;font-weight:600;font-size:0.85rem;
+          {% if contract.status == 'pending' and contract.offer_sent_at %}background:#fff3e0;color:#e65100;
+          {% elif contract.status == 'pending' %}background:#eceff1;color:#455a64;
+          {% elif contract.status == 'offer_accepted' %}background:#e3f2fd;color:#1565c0;
+          {% elif contract.status == 'offer_rejected' %}background:#ffebee;color:#c62828;
+          {% elif contract.status in ['funded', 'in_progress'] %}background:#e3f2fd;color:#1565c0;
+          {% elif contract.status == 'under_review' %}background:#fff3e0;color:#e65100;
+          {% elif contract.status == 'approved' %}background:#e8f5e9;color:#2e7d32;
+          {% elif contract.status == 'disputed' %}background:#ffebee;color:#c62828;
+          {% endif %}">
+          {% if contract.status == 'pending' and contract.offer_sent_at %}
+          Offer Pending
+          {% elif contract.status == 'pending' %}
+          Awaiting Offer
+          {% elif contract.status == 'offer_accepted' %}
+          Offer Accepted
+          {% elif contract.status == 'offer_rejected' %}
+          Offer Rejected
+          {% else %}
+          {{ contract.status | replace('_', ' ') | title }}
+          {% endif %}
+        </div>
+
+        {% if contract.status == 'under_review' and contract.review_deadline %}
+        <div style="margin-top:12px;padding:12px;background:var(--surface);border-radius:8px;border:1px solid var(--border);">
+          <div class="text-xs text-muted" style="margin-bottom:4px;">Review Period Countdown</div>
+          <div id="countdown-timer" class="countdown" style="font-weight:700;font-size:1.2rem;color:var(--primary);" data-deadline="{{ contract.review_deadline.isoformat() }}">
+            Loading...
+          </div>
+          <small style="color:var(--text-muted);display:block;margin-top:4px;">Funds auto-release if employer doesn't act</small>
+        </div>
+        {% endif %}
+
+        <hr class="divider" style="margin:16px 0;">
+        <div style="font-size:0.85rem;">
+          <div style="margin-bottom:12px;">
+            <label class="text-xs text-muted">Current Contract Amount</label>
+            <div style="font-weight:600;" data-contract-amount>${{ "%.2f"|format(contract.price_usd) }}</div>
+          </div>
+          {% if not is_employer and contract_funded %}
+          <div style="margin-bottom:12px;padding:12px;background:#e8f5e9;border-radius:6px;border:1px solid #4caf50;">
+            <label class="text-xs text-muted">Your Balance (Held in Escrow)</label>
+            <div style="font-weight:600;font-size:1.2rem;color:#2e7d32;">${{ "%.2f"|format(contract.price_usd) }}</div>
+            <small style="color:#2e7d32;display:block;margin-top:4px;">This amount will be released after employer approves your work.</small>
+          </div>
+          {% endif %}
+          {% if contract.offer_sent_at %}
+          <div style="margin-bottom:12px;">
+            <label class="text-xs text-muted">Latest Offer Sent</label>
+            <div style="font-weight:600;">{{ contract.offer_sent_at.strftime('%b %d, %I:%M %p') if contract.offer_sent_at else 'N/A' }}</div>
+          </div>
+          {% endif %}
+          {% if contract.offer_accepted_at %}
+          <div style="margin-bottom:12px;">
+            <label class="text-xs text-muted">Offer Accepted</label>
+            <div style="font-weight:600;">{{ contract.offer_accepted_at.strftime('%b %d, %I:%M %p') if contract.offer_accepted_at else 'N/A' }}</div>
+          </div>
+          {% elif contract.offer_rejected_at %}
+          <div style="margin-bottom:12px;">
+            <label class="text-xs text-muted">Offer Declined</label>
+            <div style="font-weight:600;">{{ contract.offer_rejected_at.strftime('%b %d, %I:%M %p') if contract.offer_rejected_at else 'N/A' }}</div>
+          </div>
+          {% endif %}
+          {% if contract.deadline %}
+          <div style="margin-bottom:12px;">
+            <label class="text-xs text-muted">Work Deadline</label>
+            <div style="font-weight:600;">{{ contract.deadline.strftime('%b %d, %Y') if contract.deadline else 'N/A' }}</div>
+          </div>
+          {% endif %}
+          {% if contract.status == 'under_review' and contract.review_deadline %}
+          <div style="margin-bottom:12px;">
+            <label class="text-xs text-muted">Review Until</label>
+            <div style="font-weight:600;">{{ contract.review_deadline.strftime('%b %d, %I:%M %p') if contract.review_deadline else 'N/A' }}</div>
+          </div>
+          {% endif %}
+        </div>
+        {% endif %}
+        <hr class="divider" style="margin:16px 0;">
+        <div style="margin-bottom:8px;" class="text-sm text-muted">You are chatting with:</div>
+        <div style="display:flex;gap:12px;align-items:flex-start;position:relative;">
+          <div style="position:relative;">
+            {% if other_party.profile_pic_url %}
+            <img src="{{ other_party.profile_pic_url }}" style="width:40px;height:40px;border-radius:50%;object-fit:cover;border:1px solid var(--border);" loading="lazy" decoding="async">
+            {% else %}
+            <div style="width:40px;height:40px;border-radius:50%;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:1.1rem;flex-shrink:0;">
+              {{ (other_party.full_name or 'U')[0].upper() }}
+            </div>
+            {% endif %}
+            {% if other_party.online_status and other_party.online_status.is_online %}
+            <div data-online-indicator style="position:absolute;bottom:0;right:0;width:12px;height:12px;background:#4caf50;border:2px solid white;border-radius:50%;"></div>
+            {% else %}
+            <div data-online-indicator style="position:absolute;bottom:0;right:0;width:12px;height:12px;background:#9e9e9e;border:2px solid white;border-radius:50%;"></div>
+            {% endif %}
+          </div>
+          <div style="flex:1;">
+            <div style="font-weight:600;font-size:1rem;display:flex;align-items:center;gap:8px;">
+              {{ other_party.full_name or 'Anonymous' }}
+              {% if other_party.online_status %}
+                {% if other_party.online_status.is_online %}
+                <span data-online-badge style="font-size:0.75rem;background:#4caf50;color:white;padding:2px 8px;border-radius:12px;font-weight:500;">Online</span>
+                {% else %}
+                <span data-online-badge style="font-size:0.75rem;background:#9e9e9e;color:white;padding:2px 8px;border-radius:12px;font-weight:500;">Offline</span>
+                {% endif %}
+              {% else %}
+                <span data-online-badge style="font-size:0.75rem;background:#9e9e9e;color:white;padding:2px 8px;border-radius:12px;font-weight:500;">Offline</span>
+              {% endif %}
+            </div>
+            <div class="text-sm text-muted">{{ other_party.role | capitalize }}</div>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <main class="card" style="display:flex;flex-direction:column;height:65vh;padding:0;">
+      <div style="padding:16px;border-bottom:1px solid var(--border);background:var(--surface);">
+        <h2 style="font-size:1.1rem;margin:0;">Messages</h2>
+        <p class="text-sm text-muted" style="margin:0;">Collaborate, share meeting links, and coordinate your work here.</p>
+      </div>
+
+      <div class="chat-messages" id="chat-box" style="flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:12px;background:var(--surface);">
+        {% if messages %}
+        {% for m in messages %}
+        <div data-message-id="{{ m.id }}" style="display:flex;flex-direction:column;max-width:75%;{% if m.sender_id == uid %}align-self:flex-end;{% else %}align-self:flex-start;{% endif %}">
+          <div class="{% if m.sender_id == uid %}msg-sent{% endif %}" style="padding:10px 14px;border-radius:12px;font-size:0.95rem;line-height:1.5;white-space:pre-line;word-break:break-word;{% if m.sender_id == uid %}background:var(--blue);border-bottom-right-radius:4px;{% else %}background:var(--white);border:1px solid var(--border);color:var(--text);border-bottom-left-radius:4px;{% endif %}">
+            {{ m.message }}
+          </div>
+          <div style="font-size:0.75rem;margin-top:4px;color:var(--text-muted);{% if m.sender_id == uid %}text-align:right;{% endif %}">
+            {{ m.full_name or 'Anonymous' }} - {{ m.created_at.strftime('%I:%M %p') if m.created_at else '' }}
+          </div>
+        </div>
+        {% endfor %}
+        {% else %}
+        <div data-chat-empty style="margin:auto;text-align:center;color:var(--text-muted);font-size:0.95rem;">
+          {% if contract_funded %}
+          No messages yet. Start collaborating on this contract!
+          {% else %}
+          No messages yet. Use this room to negotiate the final amount before escrow is funded.
+          {% endif %}
+        </div>
+        {% endif %}
+      </div>
+
+      <div style="padding:16px;border-top:1px solid var(--border);background:var(--white);">
+        <form id="msg-form" style="display:flex;gap:10px;" onsubmit="return false;">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <textarea id="msg-input" name="message" class="form-textarea" rows="2" style="flex:1;resize:none;min-height:unset;" placeholder="Type your message here... You can paste links to Zoom, Google Docs, etc."></textarea>
+          <button id="msg-btn" type="submit" class="btn btn-primary" style="height:auto;padding:0 24px;">Send</button>
+        </form>
+      </div>
+    </main>
+  </div>
+</div>
+</div>
+
+<div id="work-submission-modal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:1000;justify-content:center;align-items:center;">
+  <div class="card" style="width:90%;max-width:600px;padding:24px;border-radius:12px;box-shadow:0 4px 12px rgba(0,0,0,0.2);">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+      <h2 style="margin:0;font-size:1.3rem;">Submit Your Work</h2>
+      <button id="close-work-modal" type="button" style="background:none;border:none;font-size:1.5rem;cursor:pointer;color:var(--text-muted);">&times;</button>
+    </div>
+
+    <form id="submit-work-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+      <div style="margin-bottom:16px;">
+        <label class="form-label" for="work-submission-message">Submission Message</label>
+        <textarea id="work-submission-message" class="form-textarea" rows="3" placeholder="Briefly describe what you've completed..." style="width:100%;"></textarea>
+      </div>
+
+      <div style="margin-bottom:16px;">
+        <label class="form-label" for="deliverables-container">Deliverable Links</label>
+        <p class="text-sm text-muted" style="margin-bottom:8px;">Add links to your work (Google Drive, GitHub, videos, files, etc.)</p>
+        <div id="deliverables-container"></div>
+        <button type="button" id="add-deliverable-link" class="btn btn-secondary btn-sm">+ Add Link</button>
+      </div>
+
+      <div style="display:flex;gap:12px;justify-content:flex-end;">
+        <button type="button" id="cancel-work-submit" class="btn btn-secondary">Cancel</button>
+        <button type="submit" class="btn btn-primary">Submit Work</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+
+<script>
+  // Initialize Socket.IO connection for real-time messaging
+  const socket = io();
+  
+  document.addEventListener('DOMContentLoaded', () => {
+    const chatBox = document.getElementById('chat-box');
+    const msgForm = document.getElementById('msg-form');
+    const msgInput = document.getElementById('msg-input');
+    const msgBtn = document.getElementById('msg-btn');
+    const workSubmitBtn = document.getElementById('work-submit-btn');
+    const workModal = document.getElementById('work-submission-modal');
+    const closeModalBtn = document.getElementById('close-work-modal');
+    const cancelModalBtn = document.getElementById('cancel-work-submit');
+    const addDeliverableBtn = document.getElementById('add-deliverable-link');
+    const submitWorkForm = document.getElementById('submit-work-form');
+    const deliverablesContainer = document.getElementById('deliverables-container');
+    const countdownEl = document.querySelector('.countdown');
+    const jobId = {{ job.id }};
+    const userId = {{ uid }};
+    const senderName = {{ (session.get("full_name") or "You") | tojson }};
+    const submitWorkEndpoint = '{{ url_for("contract_submit_work", contract_id=contract.id if contract else 0) }}';
+    let lastMessageId = Math.max(0, ...Array.from(chatBox ? chatBox.querySelectorAll('[data-message-id]') : []).map((el) => Number(el.dataset.messageId || 0)));
+    let pendingTempMessages = {};
+
+    function escapeHtml(value) {
+      return String(value || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    function scrollChatToBottom() {
+      if (chatBox) {
+        chatBox.scrollTop = chatBox.scrollHeight;
+      }
+    }
+
+    function removeEmptyChatState() {
+      const emptyState = chatBox?.querySelector('[data-chat-empty]');
+      if (emptyState) {
+        emptyState.remove();
+      }
+    }
+
+    function appendMessageBubble(message) {
+      if (!chatBox || !message || !message.id) return;
+      
+      // Check if message already exists (avoid duplicates)
+      if (chatBox.querySelector(`[data-message-id="${message.id}"]`)) return;
+      
+      // For real messages, try to find and replace any matching temp messages
+      let existingTempMsg = null;
+      if (!String(message.id).startsWith('temp_')) {
+        // Look for temp messages from same sender with matching content (sent in last 10 seconds)
+        const now = Date.now();
+        for (const [tempId, tempData] of Object.entries(pendingTempMessages)) {
+          if (tempData.sender_id === message.sender_id && 
+              tempData.content === message.message && 
+              (now - tempData.timestamp) < 10000) { // Within 10 seconds
+            existingTempMsg = chatBox.querySelector(`[data-message-id="${tempId}"]`);
+            if (existingTempMsg) {
+              delete pendingTempMessages[tempId];
+              break;
+            }
+          }
+        }
+      }
+      
+      removeEmptyChatState();
+      const isOwnMessage = Number(message.sender_id) === userId;
+      const wrapper = document.createElement('div');
+      wrapper.dataset.messageId = String(message.id);
+      wrapper.dataset.sender = String(message.sender_id);
+      wrapper.style.cssText = `display:flex;flex-direction:column;max-width:75%;${isOwnMessage ? 'align-self:flex-end;' : 'align-self:flex-start;'}`;
+      wrapper.innerHTML = `
+        <div class="${isOwnMessage ? 'msg-sent' : ''}" style="padding:10px 14px;border-radius:12px;font-size:0.95rem;line-height:1.5;white-space:pre-line;word-break:break-word;${isOwnMessage ? 'background:var(--blue);border-bottom-right-radius:4px;' : 'background:var(--white);border:1px solid var(--border);color:var(--text);border-bottom-left-radius:4px;'}">
+          ${escapeHtml(message.message)}
+        </div>
+        <div style="font-size:0.75rem;margin-top:4px;color:var(--text-muted);${isOwnMessage ? 'text-align:right;' : ''}">
+          ${escapeHtml(message.sender_name || 'Anonymous')} - ${escapeHtml(message.created_at_label || '')}
+        </div>
+      `;
+      
+      // If there's a temp message for this content, replace it; otherwise just append
+      if (existingTempMsg) {
+        console.log('Replacing temp message with real message ID:', message.id);
+        existingTempMsg.replaceWith(wrapper);
+      } else {
+        chatBox.appendChild(wrapper);
+      }
+      
+      lastMessageId = Math.max(lastMessageId, Number(message.id) || 0);
+      scrollChatToBottom();
+    }
+
+    function updateOnlineStatus(onlineData) {
+      if (!onlineData) return;
+      
+      const sidebar = document.querySelector('.sidebar');
+      if (!sidebar) return;
+      
+      // Find online status indicator elements
+      let onlineBadge = sidebar.querySelector('[data-online-badge]');
+      let onlineIndicator = sidebar.querySelector('[data-online-indicator]');
+      
+      if (!onlineBadge) {
+        // Elements don't exist yet
+        return;
+      }
+      
+      // Update indicator dot color (green=online, gray=offline)
+      if (onlineIndicator) {
+        onlineIndicator.style.background = onlineData.is_online ? '#4caf50' : '#9e9e9e';
+      }
+      
+      // Update status badge (session-based, no timestamp comparison)
+      if (onlineBadge) {
+        if (onlineData.is_online) {
+          onlineBadge.textContent = 'Online';
+          onlineBadge.style.background = '#4caf50';
+        } else {
+          onlineBadge.textContent = 'Offline';
+          onlineBadge.style.background = '#9e9e9e';
+        }
+      }
+    }
+
+    function updateContractStatus(contractData) {
+      if (!contractData || !contractData.id) return;
+      
+      // Update contract status badge
+      const statusBadge = document.querySelector('.job-badge');
+      if (statusBadge) {
+        statusBadge.textContent = contractData.status.replace('_', ' ').toUpperCase();
+        statusBadge.className = 'job-badge ' + (contractData.status === 'open' ? 'badge-open' : 'badge-closed');
+      }
+      
+      // Update contract amount
+      const amountDisplay = document.querySelector('[data-contract-amount]');
+      if (amountDisplay) {
+        amountDisplay.textContent = '$' + parseFloat(contractData.price_usd).toFixed(2);
+      }
+      
+      // Toggle visibility of alert boxes based on contract state
+      const alertBoxes = document.querySelectorAll('[data-contract-alert]');
+      alertBoxes.forEach(box => {
+        const alertType = box.dataset.contractAlert;
+        let shouldShow = false;
+        
+        if (alertType === 'pending-offer' && contractData.status_display.is_pending_offer) shouldShow = true;
+        else if (alertType === 'awaiting-response' && contractData.status_display.is_awaiting_freelancer) shouldShow = true;
+        else if (alertType === 'offer-accepted' && contractData.status_display.is_accepted) shouldShow = true;
+        else if (alertType === 'offer-rejected' && contractData.status_display.is_rejected) shouldShow = true;
+        else if (alertType === 'funded' && contractData.status_display.is_funded) shouldShow = true;
+        
+        box.style.display = shouldShow ? 'block' : 'none';
+      });
+      
+      // Update button visibility
+      const buttons = {
+        'work-submit-btn': !contractData.status_display.is_funded || contractData.status_display.is_funded && contractData.status !== 'under_review',
+        'send-offer-btn': contractData.status_display.can_send_offer,
+        'fund-escrow-btn': contractData.status_display.is_accepted,
+      };
+      
+      Object.entries(buttons).forEach(([btnId, shouldShow]) => {
+        const btn = document.getElementById(btnId);
+        if (btn) {
+          btn.style.display = shouldShow ? 'inline-block' : 'none';
+        }
+      });
+      
+      // Update countdown timer if in under_review status
+      if (contractData.review_deadline && contractData.status === 'under_review') {
+        const countdownEl = document.querySelector('.countdown');
+        if (countdownEl) {
+          countdownEl.dataset.deadline = contractData.review_deadline;
+          updateCountdown(); // Call countdown update function
+        }
+      }
+    }
+
+    function addDeliverableField(title = '', url = '') {
+      if (!deliverablesContainer) return;
+      const linkDiv = document.createElement('div');
+      linkDiv.className = 'deliverable-link';
+      linkDiv.style.cssText = 'display:flex;gap:8px;margin-bottom:8px;align-items:flex-start;';
+      linkDiv.innerHTML = `
+        <input type="text" name="deliverable_title" placeholder="Link title (e.g., GitHub Repo)" class="form-input" style="flex:1;" maxlength="100" value="${escapeHtml(title)}">
+        <input type="url" name="deliverable_url" placeholder="https://..." class="form-input" style="flex:2;" value="${escapeHtml(url)}">
+        <button type="button" class="btn btn-secondary btn-sm" data-remove-deliverable>Remove</button>
+      `;
+      deliverablesContainer.appendChild(linkDiv);
+    }
+
+    function openWorkModal() {
+      if (!workModal) return;
+      workModal.style.display = 'flex';
+      if (deliverablesContainer && !deliverablesContainer.querySelector('.deliverable-link')) {
+        addDeliverableField();
+      }
+    }
+
+    function closeWorkModal() {
+      if (workModal) {
+        workModal.style.display = 'none';
+      }
+    }
+
+    scrollChatToBottom();
+
+    if (msgForm && msgInput && msgBtn) {
+      // Extract message sending logic into a reusable function
+      function sendMessage() {
+        const message = msgInput.value.trim();
+        if (!message) return false;
+
+        // Show optimistic message immediately
+        const tempId = 'temp_' + Date.now();
+        appendMessageBubble({
+          id: tempId,
+          sender_id: userId,
+          sender_name: senderName,
+          message,
+          created_at_label: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })
+        });
+        msgInput.value = '';
+
+        // Send via WebSocket immediately (no polling)
+        socket.emit('send_message', {
+          job_id: jobId,
+          user_id: userId,
+          message: message
+        });
+
+        return true;
+      }
+
+      msgForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        sendMessage();
+      });
+
+      msgInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+          e.preventDefault();
+          sendMessage();
+        }
+      });
+    } else {
+      console.error('Message form elements not found:', {msgForm, msgInput, msgBtn});
+    }
+
+    if (countdownEl) {
+      function updateCountdown() {
+        const deadline = new Date(countdownEl.dataset.deadline);
+        const now = new Date();
+        const diff = deadline - now;
+
+        if (diff <= 0) {
+          countdownEl.textContent = 'Expired - Auto-releasing funds...';
+          countdownEl.style.color = '#d32f2f';
+          return;
+        }
+
+        const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+        const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+        const mins = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+
+        if (days > 0) countdownEl.textContent = `${days}d ${hours}h remaining`;
+        else if (hours > 0) countdownEl.textContent = `${hours}h ${mins}m remaining`;
+        else countdownEl.textContent = `${mins}m remaining`;
+      }
+
+      updateCountdown();
+      setInterval(updateCountdown, 60000);
+    }
+
+    if (workSubmitBtn) workSubmitBtn.addEventListener('click', openWorkModal);
+    if (closeModalBtn) closeModalBtn.addEventListener('click', closeWorkModal);
+    if (cancelModalBtn) cancelModalBtn.addEventListener('click', closeWorkModal);
+    if (workModal) {
+      workModal.addEventListener('click', (e) => {
+        if (e.target === workModal) closeWorkModal();
+      });
+    }
+    if (addDeliverableBtn) addDeliverableBtn.addEventListener('click', () => addDeliverableField());
+    if (deliverablesContainer) {
+      deliverablesContainer.addEventListener('click', (e) => {
+        const removeBtn = e.target.closest('[data-remove-deliverable]');
+        if (removeBtn) {
+          removeBtn.closest('.deliverable-link')?.remove();
+        }
+      });
+    }
+
+    if (submitWorkForm) {
+      submitWorkForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        const message = document.getElementById('work-submission-message').value.trim();
+        const deliverables = [];
+        document.querySelectorAll('.deliverable-link').forEach((linkDiv) => {
+          const titleInput = linkDiv.querySelector('input[name="deliverable_title"]');
+          const urlInput = linkDiv.querySelector('input[name="deliverable_url"]');
+          const url = (urlInput?.value || '').trim();
+          if (url) {
+            deliverables.push({
+              title: (titleInput?.value || '').trim() || 'Deliverable',
+              url
+            });
+          }
+        });
+
+        if (!deliverables.length) {
+          alert('Please add at least one deliverable link');
+          return;
+        }
+
+        const btn = submitWorkForm.querySelector('button[type="submit"]');
+        btn.disabled = true;
+        btn.textContent = 'Submitting...';
+
+        try {
+          const csrfToken = submitWorkForm.querySelector('input[name="csrf_token"]').value;
+          const response = await fetch(submitWorkEndpoint, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-CSRF-Token': csrfToken
+            },
+            body: JSON.stringify({ deliverables_links: deliverables, submitted_message: message })
+          });
+          const payload = await response.json();
+          if (!response.ok || !payload.success) {
+            throw new Error(payload.error || 'Failed to submit work');
+          }
+
+          alert('Work submitted! Employer will review within the review window.');
+          closeWorkModal();
+          submitWorkForm.reset();
+          if (deliverablesContainer) {
+            deliverablesContainer.innerHTML = '';
+          }
+          setTimeout(() => location.reload(), 1200);
+        } catch (err) {
+          console.error('Error submitting work:', err);
+          alert(err.message || 'Error submitting work');
+          btn.textContent = 'Submit Work';
+          btn.disabled = false;
+        }
+      });
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // WebSocket Events - Real-time Messaging with Socket.IO
+    // ═══════════════════════════════════════════════════════════════════════════════
+
+    // Join contract room when Socket connects
+    socket.on('connect', () => {
+      console.log('[SOCKET] Connected to server');
+      socket.emit('join_contract', { job_id: jobId, user_id: userId });
+      
+      // Fetch initial online status to sync with server
+      fetch(`/api/contract/${jobId}/live`)
+        .then(r => r.json())
+        .then(data => {
+          if (data.other_party_online_status) {
+            console.log('[SOCKET] Initial online status:', data.other_party_online_status);
+            updateOnlineStatus(data.other_party_online_status);
+          }
+        })
+        .catch(err => console.error('[SOCKET] Error fetching online status:', err));
+    });
+
+    // Receive incoming messages in real-time
+    socket.on('new_message', (msg) => {
+      console.log('[SOCKET] New message received:', msg.sender_id, msg.message.substring(0, 30));
+      appendMessageBubble(msg);
+      lastMessageId = Math.max(lastMessageId, msg.id || 0);
+    });
+
+    // User online status update
+    socket.on('user_online', (data) => {
+      console.log('[SOCKET] User online status updated:', data.user_id);
+      updateOnlineStatus({ is_online: true });
+    });
+
+    // Handle socket errors
+    socket.on('error', (data) => {
+      console.error('[SOCKET] Error:', data.message);
+      if (data.message) alert('Error: ' + data.message);
+    });
+
+    // Send heartbeat every 3 seconds to mark user online
+    setInterval(() => {
+      socket.emit('heartbeat', { job_id: jobId, user_id: userId });
+    }, 3000);
+
+    // Fund escrow with payment provider selection
+    window.initFundEscrow = function(provider, contractId) {
+      const btnId = 'fund-escrow-btn';
+      const btn = document.getElementById(btnId);
+      if (!btn) return;
+      
+      // Show loader
+      btn.disabled = true;
+      btn.dataset.loading = 'true';
+      document.getElementById(btnId + '-text').style.display = 'none';
+      document.getElementById(btnId + '-loader').style.display = 'inline';
+      
+      // Store state to detect back-button navigation
+      sessionStorage.setItem('paystack_escrow_checkout_in_progress', 'true');
+      
+      fetch('/contract/' + contractId + '/fund', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json','X-CSRF-Token':'{{ csrf_token() }}'},
+        body: JSON.stringify({provider: provider})
+      }).then(r => r.json()).then(data => {
+        if (data.redirect_url) {
+          window.location.href = data.redirect_url;
+        } else { 
+          alert(data.error || 'Payment initialization failed. Please try again.');
+          sessionStorage.removeItem('paystack_escrow_checkout_in_progress');
+          btn.disabled = false;
+          btn.dataset.loading = 'false';
+          document.getElementById(btnId + '-text').style.display = 'inline';
+          document.getElementById(btnId + '-loader').style.display = 'none';
+        }
+      }).catch(err => { 
+        alert('Network error. Please try again.');
+        sessionStorage.removeItem('paystack_escrow_checkout_in_progress');
+        btn.disabled = false;
+        btn.dataset.loading = 'false';
+        document.getElementById(btnId + '-text').style.display = 'inline';
+        document.getElementById(btnId + '-loader').style.display = 'none';
+      });
+    }
+    
+    // Reset button state if user navigated back from Paystack
+    window.addEventListener('pageshow', function(event) {
+      if (sessionStorage.getItem('paystack_escrow_checkout_in_progress')) {
+        const btn = document.getElementById('fund-escrow-btn');
+        if (btn) {
+          btn.disabled = false;
+          btn.dataset.loading = 'false';
+          document.getElementById('fund-escrow-btn-text').style.display = 'inline';
+          document.getElementById('fund-escrow-btn-loader').style.display = 'none';
+        }
+        sessionStorage.removeItem('paystack_escrow_checkout_in_progress');
+      }
+    });
+  });
+</script>
+{% endblock %}

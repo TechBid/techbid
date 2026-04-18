@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}About — TechBid{% endblock %}
+{% block body %}
+<div class="page-wrap"><div class="container" style="max-width:920px;">
+  <div class="page-header">
+    <h1>About TechBid</h1>
+    <p>TechBid is a marketplace where businesses and independent professionals connect to get work done efficiently and securely.</p>
+  </div>
+  <div class="card mb-3">
+    <h2 class="section-title">Our mission</h2>
+    <p>Help clients hire faster and help talent earn confidently — with clear expectations, secure payments, and a respectful community.</p>
+
+    <h2 class="section-title mt-2">How the marketplace works</h2>
+    <ul class="text-sm" style="line-height:1.9;">
+      <li>Clients post jobs with budgets, timelines, and requirements.</li>
+      <li>Professionals submit proposals and communicate with clients.</li>
+      <li>Clients select a professional and work begins in a dedicated contract room.</li>
+      <li>Payments and account credits are tracked in your dashboard.</li>
+    </ul>
+
+    <h2 class="section-title mt-2">Contact</h2>
+    <p class="text-sm text-muted">Have questions? Visit <a href="{{ url_for('contact') }}">Contact</a> or the <a href="{{ url_for('help_support') }}">Help &amp; Support</a> center.</p>
+  </div>
+
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap;">
+      <div>
+        <h2 class="section-title" style="margin-bottom:6px;">Our team</h2>
+        <p class="text-sm text-muted">A small group focused on building a reliable marketplace experience.</p>
+      </div>
+    </div>
+
+    {% if team %}
+    <div class="team-grid mt-2">
+      {% for m in team %}
+      <div class="team-card">
+        <div class="team-photo">
+          <img src="{{ m.photo_url }}" alt="{{ m.name }}" loading="lazy" decoding="async">
+        </div>
+        <div class="team-meta">
+          <div class="team-name">{{ m.name }}</div>
+          <div class="team-role">{{ m.role }}</div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+      <div class="empty-state"><p>No team profiles found yet.</p></div>
+    {% endif %}
+  </div>
+</div></div>
+{% endblock %}

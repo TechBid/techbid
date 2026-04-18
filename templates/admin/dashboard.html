@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}Admin Dashboard — TechBid{% endblock %}
+{% block body %}
+<div class="page-wrap">
+<div class="container">
+  <div class="layout-2col">
+    <aside class="sidebar">
+      <ul class="sidebar-nav">
+        <li><a href="{{ url_for('admin_dashboard') }}" class="{{ 'active' if request.endpoint=='admin_dashboard' }}">Dashboard</a></li>
+        <li><a href="{{ url_for('admin_jobs') }}" class="{{ 'active' if 'admin_job' in request.endpoint }}">Jobs</a></li>
+        <li><a href="{{ url_for('admin_users') }}" class="{{ 'active' if request.endpoint=='admin_users' }}">Users</a></li>
+        <li><a href="{{ url_for('admin_payments') }}" class="{{ 'active' if request.endpoint=='admin_payments' }}">Payments</a></li>
+        <li><a href="{{ url_for('admin_job_reports') }}" class="{{ 'active' if request.endpoint=='admin_job_reports' }}">Job Reports</a></li>
+        <li><a href="{{ url_for('admin_create_robot_job') }}">Create Robot Job</a></li>
+        <li><a href="{{ url_for('admin_logout') }}" style="color:var(--danger);">Log out</a></li>
+      </ul>
+    </aside>
+    <main>
+      <div class="page-header"><h1>Admin Dashboard</h1></div>
+
+      <div class="stats-grid mb-3">
+        <div class="stat-card"><div class="stat-label">Total Users</div><div class="stat-value">{{ users_count }}</div></div>
+        <div class="stat-card"><div class="stat-label">Workers</div><div class="stat-value">{{ workers_count }}</div></div>
+        <div class="stat-card"><div class="stat-label">Employers</div><div class="stat-value">{{ emp_count }}</div></div>
+        <div class="stat-card"><div class="stat-label">Total Jobs</div><div class="stat-value">{{ jobs_count }}</div></div>
+        <div class="stat-card"><div class="stat-label">Robot Jobs</div><div class="stat-value">{{ robot_count }}</div></div>
+        <div class="stat-card"><div class="stat-label">Applications</div><div class="stat-value">{{ apps_count }}</div></div>
+        <div class="stat-card"><div class="stat-label">Revenue (USD)</div><div class="stat-value text-green">${{ "%.2f"|format(revenue_usd) }}</div></div>
+        <div class="stat-card"><div class="stat-label">Pending Disburse</div><div class="stat-value text-warning">{{ pending_disb }}</div></div>
+      </div>
+
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:24px;">
+        <form method="POST" action="{{ url_for('admin_generate_ai_jobs') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button type="submit" class="btn btn-primary">🤖 Generate AI Jobs Now</button>
+        </form>
+        <a href="{{ url_for('admin_create_robot_job') }}" class="btn btn-secondary">+ Create Robot Job Manually</a>
+        <a href="{{ url_for('admin_jobs') }}" class="btn btn-secondary">View All Jobs</a>
+        <a href="{{ url_for('admin_payments') }}" class="btn btn-secondary">Manage Payments</a>
+      </div>
+
+      <h2 class="section-title">Recent Connect Payments</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Email</th><th>Connects</th><th>USD</th><th>Provider</th><th>Status</th><th>Date</th></tr></thead>
+          <tbody>
+          {% for p in recent_pays %}
+          <tr>
+            <td>{{ p.email }}</td>
+            <td>{{ p.connects_awarded }}</td>
+            <td>${{ p.amount_usd }}</td>
+            <td>{{ p.provider }}</td>
+            <td><span class="job-badge {{ 'badge-open' if p.status=='confirmed' else 'badge-closed' if p.status=='failed' else 'badge-robot' }}">{{ p.status }}</span></td>
+            <td class="text-sm text-muted">{{ p.created_at.strftime('%b %d') if p.created_at else '' }}</td>
+          </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </main>
+  </div>
+</div>
+</div>
+{% endblock %}

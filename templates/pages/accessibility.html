@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Accessibility — TechBid{% endblock %}
+{% block body %}
+<div class="page-wrap"><div class="container" style="max-width:920px;">
+  <div class="page-header">
+    <h1>Accessibility</h1>
+    <p>We aim to make TechBid usable for as many people as possible.</p>
+  </div>
+  <div class="card">
+    <h2 class="section-title">Our approach</h2>
+    <ul class="text-sm" style="line-height:1.9;">
+      <li>Clear structure and readable typography</li>
+      <li>Keyboard-friendly navigation where possible</li>
+      <li>High-contrast theme support</li>
+    </ul>
+
+    <h2 class="section-title mt-2">Report accessibility issues</h2>
+    <p class="text-sm text-muted">If you encounter an accessibility barrier, please send details via <a href="{{ url_for('feedback') }}">Feedback</a>.</p>
+  </div>
+</div></div>
+{% endblock %}

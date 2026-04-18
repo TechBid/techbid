@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% block title %}Edit Job #{{ job.id }} — Admin{% endblock %}
+{% block body %}
+<div class="page-wrap"><div class="container" style="max-width:860px;">
+  <div class="layout-2col">
+    <aside class="sidebar"><ul class="sidebar-nav">
+      <li><a href="{{ url_for('admin_dashboard') }}">Dashboard</a></li>
+      <li><a href="{{ url_for('admin_jobs') }}" class="active">Jobs</a></li>
+      <li><a href="{{ url_for('admin_users') }}">Users</a></li>
+      <li><a href="{{ url_for('admin_payments') }}">Payments</a></li>
+      <li><a href="{{ url_for('admin_create_robot_job') }}">Create Robot Job</a></li>
+    </ul></aside>
+    <main>
+      <div class="page-header" style="display:flex;justify-content:space-between;align-items:center;">
+        <div>
+          <h1>Edit Job #{{ job.id }}</h1>
+          <p class="text-sm text-muted">{{ 'Robot Job' if job.is_robot else 'Real Job' }} · {{ job.category }}</p>
+        </div>
+        <a href="{{ url_for('admin_jobs') }}" class="btn btn-secondary btn-sm">← Back to Jobs</a>
+      </div>
+
+      <div class="card">
+        <form method="POST">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label" for="title">Job Title *</label>
+              <input id="title" type="text" name="title" class="form-input" value="{{ job.title }}" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="category">Category *</label>
+              <select id="category" name="category" class="form-select" required>
+                {% for cat in categories %}
+                <option value="{{ cat }}" {% if job.category == cat %}selected{% endif %}>{{ cat }}</option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="description">Description *</label>
+            <textarea id="description" name="description" class="form-textarea" rows="7" required>{{ job.description }}</textarea>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label" for="job_type">Job Type *</label>
+              <select id="job_type" name="job_type" class="form-select">
+                {% for jt in job_types %}
+                <option value="{{ jt }}" {% if job.job_type == jt %}selected{% endif %}>{{ jt | capitalize }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="budget_usd">Budget (USD) *</label>
+              <input id="budget_usd" type="number" name="budget_usd" class="form-input" step="0.01" value="{{ job.budget_usd }}" required>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label" for="duration">Duration</label>
+              <input id="duration" type="text" name="duration" class="form-input" value="{{ job.duration or '' }}" placeholder="e.g. 2 weeks">
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="connects_required">Connects Required</label>
+              <input id="connects_required" type="number" name="connects_required" class="form-input" value="{{ job.connects_required }}" min="5">
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="status">Status</label>
+            <select id="status" name="status" class="form-select">
+              <option value="open" {% if job.status == 'open' %}selected{% endif %}>Open</option>
+              <option value="closed" {% if job.status == 'closed' %}selected{% endif %}>Closed</option>
+              <option value="filled" {% if job.status == 'filled' %}selected{% endif %}>Filled</option>
+            </select>
+          </div>
+
+          {% if job.is_robot %}
+          <hr class="divider">
+          <h2 class="section-title" style="font-size:.95rem;">Robot Winner Settings</h2>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label" for="robot_name">Winner Name</label>
+              <input id="robot_name" type="text" name="robot_name" class="form-input" value="{{ job.robot_name or '' }}" placeholder="e.g. Aisha M.">
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="robot_connects">Winner Connects</label>
+              <input id="robot_connects" type="number" name="robot_connects" class="form-input" value="{{ job.connects_shown or 500 }}" min="100">
+            </div>
+          </div>
+          {% endif %}
+
+          <div style="display:flex;gap:12px;margin-top:8px;">
+            <button type="submit" class="btn btn-primary">Save Changes</button>
+            <a href="{{ url_for('admin_jobs') }}" class="btn btn-secondary">Cancel</a>
+          </div>
+        </form>
+      </div>
+    </main>
+  </div>
+</div></div>
+{% endblock %}

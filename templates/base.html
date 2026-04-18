@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}TechBid Marketplace{% endblock %}</title>
+  <meta name="description" content="{% block description %}Find top freelance talent or land your next job on TechBid Marketplace.{% endblock %}">
+  <meta name="keywords" content="{% block keywords %}freelance, jobs, hiring, skills marketplace{% endblock %}">
+  <meta name="author" content="TechBid Marketplace">
+  <meta name="robots" content="index, follow">
+  <meta property="og:title" content="{% block og_title %}TechBid Marketplace{% endblock %}">
+  <meta property="og:description" content="{% block og_description %}Find top freelance talent or land your next job on TechBid Marketplace.{% endblock %}">
+  <meta property="og:type" content="{% block og_type %}website{% endblock %}">
+  <meta property="og:url" content="{% block og_url %}{{ request.base_url }}{% endblock %}">
+  <meta name="theme-color" content="#1c85e8">
+  <link rel="canonical" href="{% block canonical %}{{ request.base_url }}{% endblock %}">
+  <link rel="icon" type="image/png" href="{{ url_for('static', filename='favicon.png') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <script>if(localStorage.getItem('theme')==='dark'){document.documentElement.classList.add('dark-theme');}</script>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  {% block structured_data %}{% endblock %}
+  {% block head %}{% endblock %}
+</head>
+<body class="{{ 'dark-theme' if request.cookies.get('theme') == 'dark' else '' }}"
+      data-notifications-api="{{ url_for('notifications_live_api') if current_user_id else '' }}">
+
+<!-- Navbar -->
+<nav class="navbar">
+  <div class="container">
+    <a href="{{ url_for('index') }}" class="nav-brand">Tech<span>Bid</span></a>
+
+    <button id="menu-btn" class="mobile-menu-btn" aria-label="Toggle menu" aria-expanded="false">
+      <span>☰</span>
+    </button>
+
+    <div class="nav-links">
+      <button id="theme-toggle" type="button" class="theme-toggle" title="Switch to Dark Mode" aria-label="Switch to dark mode">
+        <span class="theme-toggle__icon" aria-hidden="true"></span>
+      </button>
+      
+      {% if current_user_id %}
+        {% if current_role == 'worker' %}
+          <a href="{{ url_for('worker_dashboard') }}" {% if request.endpoint == 'worker_dashboard' %}class="active"{% endif %}>Dashboard</a>
+          <a href="{{ url_for('worker_jobs') }}" {% if request.endpoint in ['worker_jobs','worker_job_detail'] %}class="active"{% endif %}>Find Work</a>
+          <a href="{{ url_for('worker_profile') }}" {% if request.endpoint == 'worker_profile' %}class="active"{% endif %}>My Profile</a>
+        {% elif current_role == 'employer' %}
+          <a href="{{ url_for('employer_dashboard') }}" {% if request.endpoint == 'employer_dashboard' %}class="active"{% endif %}>Dashboard</a>
+          <a href="{{ url_for('employer_post_job') }}" {% if request.endpoint == 'employer_post_job' %}class="active"{% endif %}>Post a Job</a>
+          <a href="{{ url_for('employer_payments') }}" {% if request.endpoint == 'employer_payments' %}class="active"{% endif %}>Payments</a>
+          <a href="{{ url_for('employer_pricing') }}" {% if request.endpoint == 'employer_pricing' %}class="active"{% endif %}>Pricing</a>
+        {% endif %}
+        <a href="{{ url_for('contact') }}">Contact</a>
+
+        {% if current_role == 'worker' %}
+        <a href="{{ url_for('worker_buy_connects') }}" class="nav-connects" title="Your connects">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10"/></svg>
+          {{ current_connects }} connects
+        </a>
+        {% endif %}
+
+        <div class="nav-notif">
+          <a id="nav-notif-link" href="{{ url_for('notifications_page') }}" {% if request.endpoint == 'notifications_page' %}class="active"{% endif %} style="color:var(--text-muted);">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+          </a>
+          {% if notif_count > 0 %}
+          <span id="nav-notif-badge" class="notif-badge">{{ notif_count }}</span>
+          {% endif %}
+        </div>
+
+        <div class="nav-avatar">{{ (current_name or 'U')[0].upper() }}</div>
+        {% if current_role == 'worker' %}
+          {% if can_employer %}
+          <form method="POST" action="{{ url_for('switch_role', target='employer') }}" style="display:inline;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-secondary btn-sm">Switch to Hire</button>
+          </form>
+          {% else %}
+          <form method="POST" action="{{ url_for('switch_role', target='employer') }}" style="display:inline;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-secondary btn-sm">Start Hiring</button>
+          </form>
+          {% endif %}
+        {% elif current_role == 'employer' %}
+          {% if can_worker %}
+          <form method="POST" action="{{ url_for('switch_role', target='worker') }}" style="display:inline;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-secondary btn-sm">Switch to Find Work</button>
+          </form>
+          {% else %}
+          <form method="POST" action="{{ url_for('switch_role', target='worker') }}" style="display:inline;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-secondary btn-sm">Enable Worker Mode</button>
+          </form>
+          {% endif %}
+        {% endif %}
+        <a href="{{ url_for('logout') }}" class="btn btn-secondary btn-sm">Log out</a>
+
+        {% if session.get('is_admin') %}
+        <a href="{{ url_for('admin_dashboard') }}" class="btn btn-sm" style="background:#1f1f1f;color:#fff;">Admin</a>
+        {% endif %}
+
+      {% else %}
+        <a href="{{ url_for('contact') }}">Contact</a>
+        <a href="{{ url_for('login') }}" class="btn btn-secondary btn-sm">Log in</a>
+        <a href="{{ url_for('register') }}" class="btn btn-primary btn-sm">Sign up</a>
+      {% endif %}
+    </div>
+  </div>
+</nav>
+
+<!-- Mobile Drawer Menu -->
+<div class="mobile-drawer">
+  <div class="mobile-drawer-overlay" id="drawer-overlay"></div>
+  <div class="mobile-drawer-panel" id="drawer-panel">
+    <button class="mobile-drawer-close" id="drawer-close">✕</button>
+    <div class="mobile-drawer-content">
+      {% if current_user_id %}
+        {% if current_role == 'worker' %}
+          <a href="{{ url_for('worker_dashboard') }}" class="mobile-drawer-link {% if request.endpoint == 'worker_dashboard' %}active{% endif %}">Dashboard</a>
+          <a href="{{ url_for('worker_jobs') }}" class="mobile-drawer-link {% if request.endpoint in ['worker_jobs','worker_job_detail'] %}active{% endif %}">Find Work</a>
+          <a href="{{ url_for('worker_profile') }}" class="mobile-drawer-link {% if request.endpoint == 'worker_profile' %}active{% endif %}">My Profile</a>
+          <a href="{{ url_for('worker_buy_connects') }}" class="mobile-drawer-link">Buy Connects</a>
+        {% elif current_role == 'employer' %}
+          <a href="{{ url_for('employer_dashboard') }}" class="mobile-drawer-link {% if request.endpoint == 'employer_dashboard' %}active{% endif %}">Dashboard</a>
+          <a href="{{ url_for('employer_post_job') }}" class="mobile-drawer-link {% if request.endpoint == 'employer_post_job' %}active{% endif %}">Post a Job</a>
+          <a href="{{ url_for('employer_payments') }}" class="mobile-drawer-link {% if request.endpoint == 'employer_payments' %}active{% endif %}">Payments</a>
+          <a href="{{ url_for('employer_pricing') }}" class="mobile-drawer-link {% if request.endpoint == 'employer_pricing' %}active{% endif %}">Pricing</a>
+        {% endif %}
+        <div class="mobile-drawer-divider"></div>
+        <a href="{{ url_for('help_support') }}" class="mobile-drawer-link">Help & Support</a>
+        <a href="{{ url_for('contact') }}" class="mobile-drawer-link">Contact</a>
+        
+        {% if current_role == 'worker' %}
+          {% if can_employer %}
+            <form method="POST" action="{{ url_for('switch_role', target='employer') }}" style="display:block;">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button type="submit" class="btn btn-secondary mobile-drawer-button">Switch to Hire</button>
+            </form>
+          {% else %}
+            <form method="POST" action="{{ url_for('switch_role', target='employer') }}" style="display:block;">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button type="submit" class="btn btn-secondary mobile-drawer-button">Start Hiring</button>
+            </form>
+          {% endif %}
+        {% elif current_role == 'employer' %}
+          {% if can_worker %}
+            <form method="POST" action="{{ url_for('switch_role', target='worker') }}" style="display:block;">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button type="submit" class="btn btn-secondary mobile-drawer-button">Switch to Find Work</button>
+            </form>
+          {% else %}
+            <form method="POST" action="{{ url_for('switch_role', target='worker') }}" style="display:block;">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button type="submit" class="btn btn-secondary mobile-drawer-button">Enable Worker Mode</button>
+            </form>
+          {% endif %}
+        {% endif %}
+        
+        <div class="mobile-drawer-divider"></div>
+        <a href="{{ url_for('logout') }}" class="mobile-drawer-link">Log out</a>
+        
+        {% if session.get('is_admin') %}
+        <a href="{{ url_for('admin_dashboard') }}" class="mobile-drawer-link">Admin</a>
+        {% endif %}
+      {% else %}
+        <a href="{{ url_for('contact') }}" class="mobile-drawer-link">Contact</a>
+        <div class="mobile-drawer-divider"></div>
+        <a href="{{ url_for('login') }}" class="btn btn-secondary mobile-drawer-button">Log in</a>
+        <a href="{{ url_for('register') }}" class="btn btn-primary mobile-drawer-button">Sign up</a>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<script>
+(function() {
+  const menuBtn = document.getElementById('menu-btn');
+  const overlay = document.getElementById('drawer-overlay');
+  const panel = document.getElementById('drawer-panel');
+  const closeBtn = document.getElementById('drawer-close');
+  
+  if (!menuBtn || !overlay || !panel) return;
+  
+  function openMenu() {
+    overlay.classList.add('active');
+    panel.classList.add('active');
+    menuBtn.setAttribute('aria-expanded', 'true');
+    document.body.style.overflow = 'hidden';
+  }
+  
+  function closeMenu() {
+    overlay.classList.remove('active');
+    panel.classList.remove('active');
+    menuBtn.setAttribute('aria-expanded', 'false');
+    document.body.style.overflow = '';
+  }
+  
+  menuBtn.addEventListener('click', openMenu);
+  overlay.addEventListener('click', closeMenu);
+  closeBtn.addEventListener('click', closeMenu);
+  
+  // Close menu when a link is clicked
+  panel.querySelectorAll('a').forEach(link => {
+    link.addEventListener('click', closeMenu);
+  });
+})();
+</script>
+
+<!-- Flash Messages -->
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+  <div style="position:fixed;top:72px;right:20px;z-index:200;width:340px;">
+    {% for cat, msg in messages %}
+    <div class="alert alert-{{ 'success' if cat=='success' else 'error' if cat=='error' else 'warning' if cat=='warning' else 'info' }}"
+         style="margin-bottom:8px;box-shadow:var(--shadow-md);">{{ msg }}</div>
+    {% endfor %}
+  </div>
+  {% endif %}
+{% endwith %}
+
+{% block body %}{% endblock %}
+
+<div id="cookie-consent" style="position:fixed;left:18px;right:18px;bottom:18px;z-index:220;display:none;">
+  <div style="background:var(--white);border:1px solid var(--border);border-radius:10px;box-shadow:var(--shadow-md);padding:14px 16px;display:flex;gap:12px;justify-content:space-between;align-items:center;flex-wrap:wrap;">
+    <div class="text-sm" style="max-width:760px;">
+      We use cookies to run core site features, remember your preferences, and improve performance.
+      By selecting <strong>Accept all cookies</strong>, you consent to all cookie categories used on this site.
+      Read more in our <a href="{{ url_for('cookie_policy') }}">Cookie policy</a>.
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;">
+      <button id="cookie-essential-only" class="btn btn-secondary btn-sm" type="button">Essential only</button>
+      <button id="cookie-accept-all" class="btn btn-primary btn-sm" type="button">Accept all cookies</button>
+    </div>
+  </div>
+</div>
+
+<footer style="background:var(--white);border-top:1px solid var(--border);padding:24px 0;margin-top:60px;">
+  <div class="container">
+    <div class="footer-grid">
+      <div>
+        <div class="text-sm fw-600" style="margin-bottom:8px;color:var(--text);">Company</div>
+        <div style="display:grid;gap:6px;">
+          <a href="{{ url_for('about') }}" class="text-muted text-sm">About</a>
+          <a href="{{ url_for('release_notes') }}" class="text-muted text-sm">Release notes</a>
+          <a href="{{ url_for('enterprise') }}" class="text-muted text-sm">Enterprise</a>
+        </div>
+      </div>
+      <div>
+        <div class="text-sm fw-600" style="margin-bottom:8px;color:var(--text);">Support</div>
+        <div style="display:grid;gap:6px;">
+          <a href="{{ url_for('help_support') }}" class="text-muted text-sm">Help &amp; Support</a>
+          <a href="{{ url_for('trust_safety') }}" class="text-muted text-sm">Trust &amp; Safety</a>
+          <a href="{{ url_for('feedback') }}" class="text-muted text-sm">Feedback</a>
+          <a href="{{ url_for('contact') }}" class="text-muted text-sm">Contact</a>
+        </div>
+      </div>
+      <div>
+        <div class="text-sm fw-600" style="margin-bottom:8px;color:var(--text);">Legal</div>
+        <div style="display:grid;gap:6px;">
+          <a href="{{ url_for('terms') }}" class="text-muted text-sm">Terms</a>
+          <a href="{{ url_for('privacy') }}" class="text-muted text-sm">Privacy</a>
+          <a href="{{ url_for('cookie_policy') }}" class="text-muted text-sm">Cookie policy</a>
+          <a href="{{ url_for('accessibility') }}" class="text-muted text-sm">Accessibility</a>
+        </div>
+      </div>
+      <div>
+        <div class="text-sm fw-600" style="margin-bottom:8px;color:var(--text);">Privacy choices</div>
+        <div style="display:grid;gap:6px;">
+          <a href="{{ url_for('ca_notice') }}" class="text-muted text-sm">CA notice at collection</a>
+          <a href="{{ url_for('privacy_choices') }}" class="text-muted text-sm">Your privacy choices</a>
+        </div>
+      </div>
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
+      <span class="text-muted text-sm">&copy; {{ now.year if now else 2026 }} TechBid Marketplace. All rights reserved.</span>
+      <div style="display:flex;gap:20px;flex-wrap:wrap;">
+        <a href="{{ url_for('index') }}" class="text-muted text-sm">Home</a>
+        <a href="{{ url_for('worker_jobs') if current_role=='worker' else url_for('index') }}" class="text-muted text-sm">Browse</a>
+      </div>
+    </div>
+  </div>
+</footer>
+
+<script src="{{ url_for('static', filename='js/main.js') }}"></script>
+{% block scripts %}{% endblock %}
+
+<script>
+// Auto-dismiss flash alerts after 5s
+setTimeout(() => {
+  document.querySelectorAll('.alert').forEach(el => {
+    el.style.transition = 'opacity .4s';
+    el.style.opacity = '0';
+    setTimeout(() => el.remove(), 400);
+  });
+}, 5000);
+</script>
+
+
+<script>
+  const toggleBtn = document.getElementById('theme-toggle');
+  const body = document.body;
+  const iconHost = toggleBtn ? toggleBtn.querySelector('.theme-toggle__icon') : null;
+  const moonIcon = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z"></path></svg>';
+  const sunIcon = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2.5"></path><path d="M12 19.5V22"></path><path d="M4.93 4.93l1.77 1.77"></path><path d="M17.3 17.3l1.77 1.77"></path><path d="M2 12h2.5"></path><path d="M19.5 12H22"></path><path d="M4.93 19.07l1.77-1.77"></path><path d="M17.3 6.7l1.77-1.77"></path></svg>';
+
+  function setTheme(theme) {
+    if (!toggleBtn || !iconHost) return;
+    if (theme === 'dark') {
+      body.classList.add('dark-theme');
+      document.documentElement.classList.add('dark-theme');
+      iconHost.innerHTML = sunIcon;
+      toggleBtn.title = 'Switch to Light Mode';
+      toggleBtn.setAttribute('aria-label', 'Switch to light mode');
+      localStorage.setItem('theme', 'dark');
+      document.cookie = 'theme=dark; path=/; max-age=31536000';
+    } else {
+      body.classList.remove('dark-theme');
+      document.documentElement.classList.remove('dark-theme');
+      iconHost.innerHTML = moonIcon;
+      toggleBtn.title = 'Switch to Dark Mode';
+      toggleBtn.setAttribute('aria-label', 'Switch to dark mode');
+      localStorage.setItem('theme', 'light');
+      document.cookie = 'theme=light; path=/; max-age=31536000';
+    }
+  }
+
+  // Initialize from localStorage (instant, no flash)
+  const savedTheme = localStorage.getItem('theme') || 'light';
+  setTheme(savedTheme);
+
+  // Toggle behavior
+  if (toggleBtn) {
+    toggleBtn.addEventListener('click', () => {
+      setTheme(body.classList.contains('dark-theme') ? 'light' : 'dark');
+    });
+  }
+</script>
+
+<script>
+  (function () {
+    const CONSENT_KEY = "cookie-consent";
+    const CONSENT_ALL = "all";
+    const CONSENT_ESSENTIAL = "essential";
+    const banner = document.getElementById("cookie-consent");
+    const acceptBtn = document.getElementById("cookie-accept-all");
+    const essentialBtn = document.getElementById("cookie-essential-only");
+    if (!banner || !acceptBtn || !essentialBtn) return;
+
+    const hasConsent = document.cookie.split("; ").some((item) =>
+      item === `${CONSENT_KEY}=${CONSENT_ALL}` || item === `${CONSENT_KEY}=${CONSENT_ESSENTIAL}`
+    );
+    if (!hasConsent) {
+      banner.style.display = "block";
+    }
+
+    function saveConsent(value) {
+      const maxAge = 60 * 60 * 24 * 365;
+      document.cookie = `${CONSENT_KEY}=${value}; path=/; max-age=${maxAge}; SameSite=Lax`;
+      localStorage.setItem(CONSENT_KEY, value);
+      banner.style.display = "none";
+    }
+
+    acceptBtn.addEventListener("click", function () {
+      saveConsent(CONSENT_ALL);
+    });
+
+    essentialBtn.addEventListener("click", function () {
+      saveConsent(CONSENT_ESSENTIAL);
+    });
+  })();
+</script>
+</body>
+</html>

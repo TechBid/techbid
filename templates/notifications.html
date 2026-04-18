@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}Notifications — TechBid{% endblock %}
+{% block body %}
+<div class="page-wrap">
+  <div class="container" style="max-width:900px;">
+    <div class="page-header">
+      <h1>Notifications</h1>
+      <p>Recent account activity and updates.</p>
+    </div>
+
+    <div id="notifications-feed" data-live-notifications data-limit="100" data-mark-read="1">
+      {% if notifs %}
+        {% for n in notifs %}
+        <div class="notif-item">
+          <div class="notif-dot"></div>
+          <div class="notif-content">
+            {% if n.target_url %}
+            <a href="{{ n.target_url }}" class="notif-link">{{ n.display_message or n.message }}</a>
+            {% else %}
+            <div>{{ n.display_message or n.message }}</div>
+            {% endif %}
+            <div class="notif-time">{{ n.created_at | time_ago }}</div>
+          </div>
+        </div>
+        {% endfor %}
+      {% else %}
+        <div class="empty-state">
+          <p>No notifications yet.</p>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

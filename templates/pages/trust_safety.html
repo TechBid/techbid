@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Trust & Safety — TechBid{% endblock %}
+{% block body %}
+<div class="page-wrap"><div class="container" style="max-width:920px;">
+  <div class="page-header">
+    <h1>Trust, Safety &amp; Security</h1>
+    <p>Our goal is a marketplace where clients and talent can work with confidence.</p>
+  </div>
+  <div class="card">
+    <h2 class="section-title">Account security</h2>
+    <ul class="text-sm" style="line-height:1.9;">
+      <li>Protect your password and do not share login codes.</li>
+      <li>Report suspicious activity immediately.</li>
+      <li>Use strong passwords and update them regularly.</li>
+    </ul>
+
+    <h2 class="section-title mt-2">Payment safety</h2>
+    <ul class="text-sm" style="line-height:1.9;">
+      <li>Keep payment discussions inside the platform.</li>
+      <li>Do not accept requests to move transactions off-platform.</li>
+      <li>Verify job details, scope, and deliverables before starting.</li>
+    </ul>
+
+    <h2 class="section-title mt-2">Fraud prevention</h2>
+    <p class="text-sm text-muted">We investigate abuse reports and may restrict accounts that violate policies or attempt to defraud others.</p>
+
+    <h2 class="section-title mt-2">Need help?</h2>
+    <p class="text-sm text-muted">Visit <a href="{{ url_for('help_support') }}">Help &amp; Support</a> or <a href="{{ url_for('contact') }}">Contact</a>.</p>
+  </div>
+</div></div>
+{% endblock %}

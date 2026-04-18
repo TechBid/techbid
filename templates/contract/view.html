@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+{% block title %}Contract #{{ contract.id }} — TechBid{% endblock %}
+{% block body %}
+<div class="page-wrap">
+<div class="container" style="max-width:900px;">
+  <div style="display:flex;gap:16px;align-items:center;margin-bottom:20px;">
+    {% if current_user_is_employer %}
+    <a href="{{ url_for('employer_dashboard') }}" class="text-muted text-sm" style="display:inline-flex;gap:6px;">← Back to dashboard</a>
+    {% else %}
+    <a href="{{ url_for('worker_dashboard') }}" class="text-muted text-sm" style="display:inline-flex;gap:6px;">← Back to dashboard</a>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <h1 style="font-size:1.3rem;margin-bottom:16px;">Contract #{{ contract.id }}</h1>
+    
+    <div style="background:var(--surface);padding:16px;border-radius:var(--radius);margin-bottom:20px;">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+        <div>
+          <div class="text-sm text-muted">Status</div>
+          <div class="job-badge {{ {
+            'pending': 'badge-hourly',
+            'offer_accepted': 'badge-real',
+            'offer_rejected': 'badge-closed',
+            'funded': 'badge-real',
+            'in_progress': 'badge-hourly',
+            'submitted': 'badge-daily',
+            'under_review': 'badge-hourly',
+            'approved': 'badge-open',
+            'completed': 'badge-open',
+            'disputed': 'badge-closed',
+            'refunded': 'badge-closed'
+          }.get(contract.status, 'badge-real') }}" style="display:inline-block;">
+            {% if contract.status == 'pending' and contract.offer_sent_at %}
+            Offer Pending
+            {% elif contract.status == 'pending' %}
+            Awaiting Offer
+            {% elif contract.status == 'offer_accepted' %}
+            Offer Accepted
+            {% elif contract.status == 'offer_rejected' %}
+            Offer Rejected
+            {% else %}
+            {{ contract.status | replace('_', ' ') | title }}
+            {% endif %}
+          </div>
+        </div>
+        <div>
+          <div class="text-sm text-muted">Price</div>
+          <div style="font-weight:600;color:var(--green);">${{ "%.2f"|format(contract.price_usd) }}</div>
+        </div>
+        <div>
+          <div class="text-sm text-muted">Deadline</div>
+          <div>{{ contract.deadline.strftime('%B %d, %Y') if contract.deadline else 'N/A' }}</div>
+        </div>
+        <div>
+          <div class="text-sm text-muted">Escrow Funded</div>
+          <div>{{ contract.funded_at.strftime('%B %d, %Y') if contract.funded_at else 'Pending' }}</div>
+        </div>
+      </div>
+    </div>
+
+    <hr class="divider">
+    <h2 style="font-size:1rem;margin:20px 0 12px;">Scope & Deliverables</h2>
+    <div style="padding:12px;background:var(--surface);border-radius:var(--radius);margin-bottom:20px;">
+      <p style="white-space:pre-line;color:var(--text);">{{ contract.scope }}</p>
+      <hr class="divider" style="margin:12px 0;">
+      <div style="font-size:.9rem;font-weight:600;margin-bottom:8px;">Required Deliverables:</div>
+      <p style="white-space:pre-line;color:var(--text);font-size:.9rem;">{{ contract.deliverables }}</p>
+    </div>
+
+    {% if work_submission %}
+    <hr class="divider">
+    <h2 style="font-size:1rem;margin:20px 0 12px;">Work Submission</h2>
+    <div style="padding:12px;background:var(--surface);border-radius:var(--radius);margin-bottom:20px;">
+      <p style="color:var(--text);">{{ work_submission.submitted_message }}</p>
+      <div style="margin-top:12px;">
+        <div style="font-weight:600;margin-bottom:8px;font-size:.9rem;">Deliverable Links:</div>
+        <ul style="list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:6px;">
+        {% for link in work_submission.deliverables_links %}
+          <li><a href="{{ link.url }}" target="_blank" rel="noopener noreferrer" style="color:var(--blue);display:inline-flex;align-items:center;gap:4px;font-size:.9rem;">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
+            {{ link.title or link.url }}
+          </a></li>
+        {% endfor %}
+        </ul>
+      </div>
+      <div style="margin-top:8px;font-size:.8rem;color:var(--text-muted);">Submitted {{ work_submission.submitted_at.strftime('%B %d, %Y at %I:%M %p') }}</div>
+    </div>
+
+    {% if contract.status == 'under_review' and current_user_is_employer %}
+    <div style="display:flex;gap:10px;margin:20px 0;">
+      <form method="POST" action="{{ url_for('contract_approve', contract_id=contract.id) }}" style="display:inline;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="btn btn-primary">Approve & Release Funds</button>
+      </form>
+      <form method="POST" action="{{ url_for('contract_open_dispute', contract_id=contract.id) }}" style="display:inline;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <textarea name="reason" class="form-textarea" rows="2" style="display:inline-block;width:300px;" placeholder="Reason for dispute..."></textarea>
+        <button type="submit" class="btn btn-secondary">Open Dispute</button>
+      </form>
+    </div>
+    {% endif %}
+    {% endif %}
+
+    {% if dispute %}
+    <hr class="divider">
+    <h2 style="font-size:1rem;margin:20px 0 12px;">Dispute</h2>
+    <div style="padding:12px;background:#fee;border-radius:var(--radius);border-left:4px solid var(--danger);margin-bottom:20px;">
+      <div style="font-weight:600;color:var(--danger);margin-bottom:8px;">Status: {{ dispute.status | replace('_', ' ') | title }}</div>
+      {% if dispute.reason %}<p style="margin-bottom:8px;color:var(--text);">{{ dispute.reason }}</p>{% endif %}
+      {% if dispute.admin_decision %}
+      <hr class="divider" style="margin:12px 0;">
+      <div style="font-weight:600;margin-bottom:8px;">Admin Decision: <span style="color:var(--green);">{{ dispute.admin_decision | replace('_', ' ') | title }}</span> ({{ dispute.decision_percentage }}% to freelancer)</div>
+      <p style="font-size:.9rem;color:var(--text);">{{ dispute.reason }}</p>
+      <div style="margin-top:8px;font-size:.8rem;color:var(--text-muted);">Decided {{ dispute.decided_at.strftime('%B %d, %Y at %I:%M %p') }}</div>
+      {% endif %}
+    </div>
+    {% endif %}
+
+    <hr class="divider" style="margin-top:20px;">
+    <a href="{{ url_for('contract_room', job_id=contract.job_id) }}" class="btn btn-blue">Go to Contract Messages</a>
+  </div>
+</div>
+</div>
+{% endblock %}

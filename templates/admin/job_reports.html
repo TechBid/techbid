@@ -1,0 +1,252 @@
+{% extends "base.html" %}
+{% block title %}Job Reports — Admin Dashboard — TechBid{% endblock %}
+{% block body %}
+<div class="page-wrap">
+<div class="container">
+  <div class="layout-2col">
+    <aside class="sidebar">
+      <ul class="sidebar-nav">
+        <li><a href="{{ url_for('admin_dashboard') }}" class="{{ 'active' if request.endpoint=='admin_dashboard' }}">Dashboard</a></li>
+        <li><a href="{{ url_for('admin_jobs') }}" class="{{ 'active' if 'admin_job' in request.endpoint }}">Jobs</a></li>
+        <li><a href="{{ url_for('admin_users') }}" class="{{ 'active' if request.endpoint=='admin_users' }}">Users</a></li>
+        <li><a href="{{ url_for('admin_payments') }}" class="{{ 'active' if request.endpoint=='admin_payments' }}">Payments</a></li>
+        <li><a href="{{ url_for('admin_job_reports') }}" class="{{ 'active' if request.endpoint=='admin_job_reports' }}">Job Reports</a></li>
+        <li><a href="{{ url_for('admin_create_robot_job') }}">Create Robot Job</a></li>
+        <li><a href="{{ url_for('admin_logout') }}" style="color:var(--danger);">Log out</a></li>
+      </ul>
+    </aside>
+    <main>
+      <div class="page-header">
+        <h1>Job Reports</h1>
+        <p class="text-muted">Fake job reports from freelancers</p>
+      </div>
+
+      <!-- Filter Section -->
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:20px;">
+        <form method="GET" action="{{ url_for('admin_job_reports') }}" style="display:flex;gap:10px;flex-wrap:wrap;">
+          <select name="status" class="form-input" style="width:150px;">
+            <option value="">All Status</option>
+            <option value="pending" {% if request.args.get('status')=='pending' %}selected{% endif %}>Pending Review</option>
+            <option value="reviewed" {% if request.args.get('status')=='reviewed' %}selected{% endif %}>Reviewed</option>
+            <option value="dismissed" {% if request.args.get('status')=='dismissed' %}selected{% endif %}>Dismissed</option>
+            <option value="action_taken" {% if request.args.get('status')=='action_taken' %}selected{% endif %}>Action Taken</option>
+          </select>
+          <button type="submit" class="btn btn-secondary">Filter</button>
+          <a href="{{ url_for('admin_job_reports') }}" class="btn btn-secondary">Clear</a>
+        </form>
+      </div>
+
+      <!-- Reports Table -->
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Job Title</th>
+              <th>Reporter</th>
+              <th>Reason</th>
+              <th>Details</th>
+              <th>Status</th>
+              <th>Reported At</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for report in reports %}
+            <tr>
+              <td>
+                <strong>
+                  <a href="{{ url_for('admin_edit_job', job_id=report.job_id) }}" style="color:var(--primary);">
+                    {{ report.job_title[:50] }}
+                  </a>
+                </strong>
+                <div class="text-xs text-muted">Job ID: {{ report.job_id }}</div>
+              </td>
+              <td>
+                <a href="{{ url_for('admin_users') }}" style="color:var(--primary);">{{ report.reporter_email[:30] }}</a>
+                <div class="text-xs text-muted">ID: {{ report.reporter_id }}</div>
+              </td>
+              <td>
+                <code style="background:var(--surface);padding:2px 6px;border-radius:3px;font-size:0.85rem;">
+                  {{ report.reason | replace('_', ' ') | title }}
+                </code>
+              </td>
+              <td>
+                <div style="max-width:200px;font-size:0.9rem;color:var(--text-muted);word-break:break-word;">
+                  {% if report.details %}{{ report.details[:60] }}{% if report.details|length > 60 %}...{% endif %}{% else %}<em>None</em>{% endif %}
+                </div>
+              </td>
+              <td>
+                <span class="badge badge-{{ 'warning' if report.status=='pending' else 'info' if report.status=='reviewed' else 'danger' if report.status=='dismissed' else 'success' }}">
+                  {{ report.status | replace('_', ' ') | title }}
+                </span>
+              </td>
+              <td class="text-xs text-muted">
+                {{ report.created_at.strftime('%Y-%m-%d %H:%M') if report.created_at else 'N/A' }}
+              </td>
+              <td>
+                <button class="btn btn-sm btn-secondary" onclick="openReportDetail({{ report.id }})">Review</button>
+              </td>
+            </tr>
+            {% else %}
+            <tr>
+              <td colspan="7" style="text-align:center;padding:30px;color:var(--text-muted);">
+                No job reports found.
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </main>
+  </div>
+</div>
+</div>
+
+<!-- Report Detail Modal -->
+<div id="report-detail-modal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:1000;overflow-y:auto;padding:20px;">
+  <div class="card" style="width:90%;max-width:600px;padding:24px;border-radius:12px;box-shadow:0 4px 12px rgba(0,0,0,0.2);margin:auto;margin-top:40px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+      <h2 style="margin:0;font-size:1.2rem;">Report Details</h2>
+      <button id="close-detail-modal" type="button" style="background:none;border:none;font-size:1.5rem;cursor:pointer;color:var(--text-muted);">&times;</button>
+    </div>
+
+    <div id="report-detail-content">
+      <!-- Content will be loaded here -->
+    </div>
+  </div>
+</div>
+
+<style>
+  .badge {
+    display:inline-block;
+    padding:4px 8px;
+    border-radius:3px;
+    font-size:0.75rem;
+    font-weight:600;
+  }
+  .badge-warning { background:#ff9800;color:white; }
+  .badge-info { background:#2196f3;color:white; }
+  .badge-danger { background:#f44336;color:white; }
+  .badge-success { background:#4caf50;color:white; }
+  .badge-real { background:#4caf50;color:white;padding:2px 8px;border-radius:3px; }
+</style>
+
+<script>
+  const reportData = {
+    {% for report in reports %}
+    {{ report.id }}: {
+      id: {{ report.id }},
+      job_id: {{ report.job_id }},
+      job_title: {{ report.job_title | tojson }},
+      reporter_email: {{ report.reporter_email | tojson }},
+      reporter_id: {{ report.reporter_id }},
+      reason: {{ report.reason | tojson }},
+      details: {{ report.details | tojson }},
+      status: {{ report.status | tojson }},
+      admin_notes: {{ report.admin_notes | tojson }},
+      created_at: {{ report.created_at.strftime('%Y-%m-%d %H:%M') | tojson if report.created_at else 'null' }},
+      reviewed_at: {{ report.reviewed_at.strftime('%Y-%m-%d %H:%M') | tojson if report.reviewed_at else 'null' }},
+      csrf_token: {{ csrf_token() | tojson }}
+    },
+    {% endfor %}
+  };
+
+  function openReportDetail(reportId) {
+    const report = reportData[reportId];
+    if (!report) return;
+
+    const modal = document.getElementById('report-detail-modal');
+    const content = document.getElementById('report-detail-content');
+
+    content.innerHTML = `
+      <div style="margin-bottom:16px;">
+        <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:16px;">
+          <div>
+            <label class="text-xs text-muted">Job</label>
+            <div style="font-weight:600;"><a href="/admin/jobs/${report.job_id}/edit" target="_blank">${report.job_title}</a></div>
+            <div class="text-sm text-muted">Job ID: ${report.job_id}</div>
+          </div>
+          <span class="badge badge-${report.status === 'pending' ? 'warning' : report.status === 'reviewed' ? 'info' : report.status === 'dismissed' ? 'danger' : 'success'}">
+            ${report.status.replace(/_/g, ' ').charAt(0).toUpperCase() + report.status.replace(/_/g, ' ').slice(1)}
+          </span>
+        </div>
+
+        <div style="margin-bottom:12px;">
+          <label class="text-xs text-muted">Reporter</label>
+          <div style="font-weight:600;">${report.reporter_email}</div>
+          <div class="text-sm text-muted">User ID: ${report.reporter_id}</div>
+        </div>
+
+        <div style="margin-bottom:12px;">
+          <label class="text-xs text-muted">Reason</label>
+          <div style="font-weight:600;background:var(--surface);padding:8px;border-radius:4px;">
+            ${report.reason.replace(/_/g, ' ').charAt(0).toUpperCase() + report.reason.replace(/_/g, ' ').slice(1)}
+          </div>
+        </div>
+
+        <div style="margin-bottom:12px;">
+          <label class="text-xs text-muted">Details</label>
+          <div style="background:var(--surface);padding:8px;border-radius:4px;min-height:60px;white-space:pre-wrap;word-break:break-word;">
+            ${report.details || '<em>No additional details provided</em>'}
+          </div>
+        </div>
+
+        <div style="margin-bottom:12px;">
+          <label class="text-xs text-muted">Reported At</label>
+          <div>${report.created_at || 'N/A'}</div>
+        </div>
+
+        ${report.reviewed_at ? `
+          <div style="margin-bottom:12px;">
+            <label class="text-xs text-muted">Reviewed At</label>
+            <div>${report.reviewed_at}</div>
+          </div>
+        ` : ''}
+
+        ${report.admin_notes ? `
+          <div style="margin-bottom:12px;">
+            <label class="text-xs text-muted">Admin Notes</label>
+            <div style="background:var(--surface);padding:8px;border-radius:4px;white-space:pre-wrap;word-break:break-word;">
+              ${report.admin_notes}
+            </div>
+          </div>
+        ` : ''}
+      </div>
+
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:20px;padding-top:20px;border-top:1px solid var(--border);">
+        <form method="POST" action="/admin/job-reports/mark-reviewed" style="flex:1;">
+          <input type="hidden" name="csrf_token" value="${report.csrf_token}">
+          <input type="hidden" name="report_id" value="${report.id}">
+          <button type="submit" class="btn btn-secondary" style="width:100%;">Mark as Reviewed</button>
+        </form>
+        
+        <form method="POST" action="/admin/job-reports/dismiss" style="flex:1;">
+          <input type="hidden" name="csrf_token" value="${report.csrf_token}">
+          <input type="hidden" name="report_id" value="${report.id}">
+          <button type="submit" class="btn btn-secondary" style="width:100%;">Dismiss Report</button>
+        </form>
+
+        <form method="POST" action="/admin/job-reports/take-action" style="flex:1;">
+          <input type="hidden" name="csrf_token" value="${report.csrf_token}">
+          <input type="hidden" name="report_id" value="${report.id}">
+          <input type="hidden" name="job_id" value="${report.job_id}">
+          <button type="submit" class="btn btn-danger" style="width:100%;background:var(--danger);">Delete Job & Mark as Fake</button>
+        </form>
+      </div>
+    `;
+
+    modal.style.display = 'block';
+  }
+
+  // Close modal
+  document.getElementById('close-detail-modal').addEventListener('click', () => {
+    document.getElementById('report-detail-modal').style.display = 'none';
+  });
+
+  document.getElementById('report-detail-modal').addEventListener('click', (e) => {
+    if (e.target.id === 'report-detail-modal') {
+      document.getElementById('report-detail-modal').style.display = 'none';
+    }
+  });
+</script>
+{% endblock %}

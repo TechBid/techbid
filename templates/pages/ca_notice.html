@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}CA Notice at Collection — TechBid{% endblock %}
+{% block body %}
+<div class="page-wrap"><div class="container" style="max-width:920px;">
+  <div class="page-header">
+    <h1>CA notice at collection</h1>
+    <p>Summary of categories of personal information we collect and purposes of use. This is a general template.</p>
+  </div>
+  <div class="card">
+    <h2 class="section-title">Categories</h2>
+    <ul class="text-sm" style="line-height:1.9;">
+      <li>Identifiers (e.g., email address)</li>
+      <li>Professional information (profile, skills, work history you provide)</li>
+      <li>Internet activity (basic logs and security events)</li>
+      <li>Transaction information (payment metadata)</li>
+    </ul>
+    <h2 class="section-title mt-2">Purposes</h2>
+    <ul class="text-sm" style="line-height:1.9;">
+      <li>Providing the service and customer support</li>
+      <li>Security, fraud prevention, and compliance</li>
+      <li>Improving product performance and reliability</li>
+    </ul>
+    <p class="text-sm text-muted">For choices that may apply to you, see <a href="{{ url_for('privacy_choices') }}">Your privacy choices</a>.</p>
+  </div>
+</div></div>
+{% endblock %}

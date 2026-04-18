@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+{% block title %}Payments — Admin{% endblock %}
+{% block body %}
+<div class="page-wrap"><div class="container">
+  <div class="layout-2col">
+    <aside class="sidebar"><ul class="sidebar-nav">
+      <li><a href="{{ url_for('admin_dashboard') }}">Dashboard</a></li>
+      <li><a href="{{ url_for('admin_jobs') }}">Jobs</a></li>
+      <li><a href="{{ url_for('admin_users') }}">Users</a></li>
+      <li><a href="{{ url_for('admin_payments') }}" class="active">Payments</a></li>
+    </ul></aside>
+    <main>
+      <div class="page-header"><h1>Payments</h1></div>
+
+      <h2 class="section-title">Connect Purchases</h2>
+      <div class="table-wrap mb-3">
+        <table>
+          <thead><tr><th>User</th><th>Connects</th><th>USD</th><th>KES</th><th>Provider</th><th>Status</th><th>Date</th></tr></thead>
+          <tbody>
+          {% for p in pays %}
+          <tr>
+            <td class="text-sm">{{ p.email }}<br><span class="text-muted">{{ p.full_name }}</span></td>
+            <td>{{ p.connects_awarded }}</td>
+            <td>${{ p.amount_usd }}</td>
+            <td>KES {{ "%.0f"|format(p.amount_kes) }}</td>
+            <td>{{ p.provider }}</td>
+            <td><span class="job-badge {{ 'badge-open' if p.status=='confirmed' else 'badge-closed' if p.status=='failed' else 'badge-robot' }}">{{ p.status }}</span></td>
+            <td class="text-sm text-muted">{{ p.created_at.strftime('%b %d, %Y') if p.created_at else '' }}</td>
+          </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <h2 class="section-title">Employer → Worker Disbursements</h2>
+      <div class="card mb-3">
+        <h3 class="section-title" style="margin-top:0;">Gift Free Credits (Quick Admin Actions)</h3>
+        <div class="layout-2col" style="grid-template-columns: 1fr 1fr; gap: 1rem;">
+          <form method="POST" action="{{ url_for('admin_gift_connects') }}" class="card" style="padding:12px;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="form-group mb-1">
+              <label class="form-label" for="gift-worker-email-payments">Gift connects to worker email</label>
+              <input id="gift-worker-email-payments" type="email" name="email" class="form-input" placeholder="worker@example.com" required>
+            </div>
+            <div class="form-group mb-1">
+              <label class="form-label" for="gift-connects-amount">Connects amount</label>
+              <input id="gift-connects-amount" type="number" name="amount" class="form-input" min="1" value="50" required>
+            </div>
+            <button type="submit" class="btn btn-primary btn-sm">Gift Connects</button>
+          </form>
+
+          <form method="POST" action="{{ url_for('admin_gift_subscription') }}" class="card" style="padding:12px;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="form-group mb-1">
+              <label class="form-label" for="gift-subscription-email">Gift subscription to employer email</label>
+              <input id="gift-subscription-email" type="email" name="email" class="form-input" placeholder="employer@example.com" required>
+            </div>
+            <div class="form-group mb-1">
+              <label class="form-label" for="subscription-tier-payments">Subscription tier</label>
+              <select id="subscription-tier-payments" name="tier" class="form-select" required>
+                <option value="">Select tier...</option>
+                <option value="basic">Basic ($8/mo)</option>
+                <option value="pro">Pro ($18/mo)</option>
+              </select>
+            </div>
+            <div class="form-group mb-1">
+              <label class="form-label" for="duration-days-payments">Duration (days)</label>
+              <input id="duration-days-payments" type="number" name="days" class="form-input" min="1" value="30" required>
+            </div>
+            <button type="submit" class="btn btn-primary btn-sm">Gift Subscription</button>
+          </form>
+        </div>
+
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px;">
+          <form method="POST" action="{{ url_for('admin_gift_connects_random') }}" style="display:inline-flex;gap:8px;align-items:center;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="number" name="amount" class="form-input" min="1" value="50" style="width:120px;" placeholder="Amount">
+            <button type="submit" class="btn btn-secondary btn-sm">Gift Random Worker</button>
+          </form>
+          <form method="POST" action="{{ url_for('admin_gift_subscription_random') }}" style="display:inline-flex;gap:8px;align-items:center;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <select name="tier" class="form-select" style="width:140px;" required>
+              <option value="">Select tier...</option>
+              <option value="basic">Basic</option>
+              <option value="pro">Pro</option>
+            </select>
+            <input type="number" name="days" class="form-input" min="1" value="30" style="width:100px;" placeholder="Days">
+            <button type="submit" class="btn btn-secondary btn-sm">Gift Random Employer</button>
+          </form>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Employer</th><th>Worker</th><th>Job</th><th>Amount (KES)</th><th>Status</th><th>Action</th></tr></thead>
+          <tbody>
+          {% for ep in emp_pays %}
+          <tr>
+            <td class="text-sm">{{ ep.employer_email }}</td>
+            <td class="text-sm">{{ ep.worker_name }}<br>{{ ep.worker_email }}</td>
+            <td class="text-sm">{{ ep.title }}</td>
+            <td>KES {{ "%.0f"|format(ep.amount_kes) }}</td>
+            <td><span class="job-badge {{ 'badge-open' if ep.status=='disbursed' else 'badge-robot' }}">{{ ep.status }}</span></td>
+            <td>
+              {% if ep.status == 'pending' %}
+              <form method="POST" action="{{ url_for('admin_disburse', pay_id=ep.id) }}" style="display:flex;gap:6px;align-items:center;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="text" name="admin_note" class="form-input" placeholder="Note…" style="width:120px;padding:5px 8px;font-size:.8rem;">
+                <button id="disburse-{{ ep.id }}" type="submit" class="btn btn-primary btn-sm">Mark Disbursed</button>
+              </form>
+              {% else %}
+              <span class="text-sm text-muted">{{ ep.admin_note or '—' }}</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </main>
+  </div>
+</div></div>
+{% endblock %}

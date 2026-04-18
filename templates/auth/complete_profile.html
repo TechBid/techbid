@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% block title %}Complete Your Profile — TechBid{% endblock %}
+{% block body %}
+<div class="page-wrap">
+<div class="container" style="max-width:600px;">
+  <div class="page-header">
+    <h1>Complete your profile</h1>
+    {% if session.get('role') == 'worker' %}
+    <p>Help employers find you. Fill in your details to get started.</p>
+    {% else %}
+    <p>Set up your company details to start hiring talent on TechBid.</p>
+    {% endif %}
+  </div>
+
+  <form method="POST" enctype="multipart/form-data">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+    <div class="form-group">
+      <label class="form-label" for="full_name">Full name *</label>
+      <input id="full_name" type="text" name="full_name" class="form-input"
+             value="{{ user.full_name or '' }}" required>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label" for="mobile">Mobile number</label>
+        <input id="mobile" type="tel" name="mobile" class="form-input"
+               value="{{ user.mobile or '' }}" placeholder="+254700000000">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="country">Country *</label>
+        <input id="country" type="text" name="country" class="form-input"
+               value="{{ user.country or '' }}" required placeholder="e.g. Kenya">
+      </div>
+    </div>
+
+    {% if session.get('role') == 'employer' %}
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label" for="company_name">Company / Organisation name</label>
+        <input id="company_name" type="text" name="company_name" class="form-input"
+               value="{{ emp_profile.company_name if emp_profile else '' }}">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="website">Website (optional)</label>
+        <input id="website" type="text" name="website" class="form-input"
+               value="{{ emp_profile.website if emp_profile else '' }}" placeholder="https://example.com">
+      </div>
+    </div>
+    {% endif %}
+
+    {% if session.get('role') == 'worker' %}
+    <div class="form-group">
+      <label class="form-label" for="specialty">Area of specialty</label>
+      <select id="specialty" name="specialty" class="form-select">
+        <option value="">— Select a category —</option>
+        {% for cat in categories %}
+        <option value="{{ cat }}" {% if user and user.specialty == cat %}selected{% endif %}>{{ cat }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label" for="skills">Skills <span class="text-muted">(comma-separated)</span></label>
+      <input id="skills" type="text" name="skills" class="form-input"
+             value="{% if user and user.skills %}{{ user.skills | tojson | replace('[','') | replace(']','') | replace('"','') }}{% endif %}"
+             placeholder="e.g. Python, React, UI Design">
+      <div class="form-hint">Up to 20 skills. Separate with commas.</div>
+    </div>
+    <div class="form-group">
+      <label class="form-label" for="portfolio_links">Portfolio Links <span class="text-muted">(Optional)</span></label>
+      <textarea id="portfolio_links" name="portfolio_links" class="form-textarea" rows="3"
+             placeholder="https://github.com/yourname&#10;https://behance.net/yourname&#10;https://drive.google.com/doc/...">{{ user.portfolio_links or '' }}</textarea>
+      <div class="form-hint">Add links to your resume, documents, github, or projects. One link per line.</div>
+    </div>
+    {% endif %}
+
+    {% if session.get('role') == 'worker' %}
+    <div class="form-group">
+      <label class="form-label" for="bio">Bio / professional summary</label>
+      <textarea id="bio" name="bio" class="form-textarea" rows="4"
+                placeholder="Tell employers about yourself, your experience, and what makes you stand out.">{{ user.bio or '' }}</textarea>
+    </div>
+    {% endif %}
+
+    {% if session.get('role') == 'worker' %}
+    <div class="form-group">
+      <label class="form-label" for="profile_pic">Profile picture</label>
+      <input id="profile_pic" type="file" name="profile_pic" class="form-input" accept="image/jpeg,image/png,image/webp">
+      <div class="form-hint">JPG, PNG or WebP. Max 5MB.</div>
+    </div>
+    {% endif %}
+
+    <button type="submit" class="btn btn-primary btn-block mt-2">Save profile</button>
+  </form>
+</div>
+</div>
+{% endblock %}

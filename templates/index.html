@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}TechBid Marketplace — Hire & Get Hired{% endblock %}
+{% block body %}
+<div class="hero">
+  <div class="container">
+    <h1>Find great work.<br><span>Get paid fairly.</span></h1>
+    <p>TechBid connects talented freelancers with real opportunities. Compete, apply, and grow your career.</p>
+    <div class="hero-actions">
+      <a href="{{ url_for('register') }}?role=worker" class="btn btn-primary">Find Work</a>
+      <a href="{{ url_for('register') }}?role=employer" class="btn btn-secondary">Hire Talent</a>
+    </div>
+
+    <div class="role-cards">
+      <div class="role-card" onclick="location.href='{{ url_for('register') }}?role=worker'">
+        <h3>🔍 I'm looking for work</h3>
+        <p>Browse thousands of freelance jobs across 30+ categories. Apply with connects and get noticed by top employers.</p>
+        <p class="mt-1 text-sm text-green fw-600">Get 100 free connects on sign up →</p>
+      </div>
+      <div class="role-card" onclick="location.href='{{ url_for('register') }}?role=employer'">
+        <h3>💼 I'm hiring talent</h3>
+        <p>Post jobs, review ranked applicants, and pay talent securely through TechBid. $5/month subscription.</p>
+        <p class="mt-1 text-sm" style="color:var(--blue);font-weight:600;">Start hiring today →</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="container" style="padding-top:48px;">
+  <h2 class="section-title" style="font-size:1.1rem;color:var(--text-muted);text-align:center;margin-bottom:32px;">Trusted by freelancers across 30+ categories</h2>
+  <div style="display:flex;flex-wrap:wrap;gap:10px;justify-content:center;max-width:800px;margin:0 auto;">
+    {% for cat in categories[:15] %}
+    <a href="{{ url_for('login') }}" class="skill-tag" style="font-size:.82rem;">{{ cat }}</a>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Feedback — TechBid{% endblock %}
+{% block body %}
+<div class="page-wrap"><div class="container" style="max-width:820px;">
+  <div class="page-header">
+    <h1>Feedback</h1>
+    <p>Share ideas, report bugs, or suggest improvements. We read every message.</p>
+  </div>
+  <div class="card">
+    <form method="POST">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label" for="feedback-name">Name (optional)</label>
+          <input id="feedback-name" type="text" name="name" class="form-input" placeholder="Your name">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="feedback-email">Email (optional)</label>
+          <input id="feedback-email" type="email" name="email" class="form-input" placeholder="you@example.com">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="feedback-message">Message *</label>
+        <textarea id="feedback-message" name="message" class="form-textarea" rows="6" placeholder="Tell us what's working well or what we should improve…" required></textarea>
+      </div>
+      <button type="submit" class="btn btn-primary">Send feedback</button>
+    </form>
+  </div>
+</div></div>
+{% endblock %}

@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Contact Us — TechBid{% endblock %}
+{% block body %}
+<div class="page-wrap">
+<div class="container" style="max-width:600px;">
+  <div class="page-header"><h1>Contact Us</h1><p>Have a question or need help? Reach out and we'll respond within 24 hours.</p></div>
+  <form method="POST">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label" for="contact-name">Your name *</label>
+        <input id="contact-name" type="text" name="name" class="form-input" required>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="contact-email">Email address *</label>
+        <input id="contact-email" type="email" name="email" class="form-input" required>
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label" for="contact-message">Message *</label>
+      <textarea id="contact-message" name="message" class="form-textarea" rows="6" required
+                placeholder="Tell us what's on your mind…"></textarea>
+    </div>
+    <button id="contact-submit" type="submit" class="btn btn-primary btn-block">Send Message</button>
+  </form>
+  <div class="mt-3" style="color:var(--text-muted);font-size:.88rem;">
+    <p>For large connect purchases or account questions, use this contact form or the feedback page and we'll follow up there.</p>
+  </div>
+</div>
+</div>
+{% endblock %}

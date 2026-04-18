@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% block title %}My Profile — TechBid{% endblock %}
+{% block body %}
+<div class="page-wrap">
+<div class="container">
+  <div class="layout-2col">
+    <aside class="sidebar">
+      <ul class="sidebar-nav">
+        <li><a href="{{ url_for('worker_dashboard') }}">Dashboard</a></li>
+        <li><a href="{{ url_for('worker_jobs') }}">Find Work</a></li>
+        <li><a href="{{ url_for('worker_profile') }}" class="active">My Profile</a></li>
+        <li><a href="{{ url_for('worker_buy_connects') }}">Buy Connects</a></li>
+        <li><a href="{{ url_for('contact') }}">Contact Us</a></li>
+      </ul>
+    </aside>
+    <main>
+      <div class="page-header" style="display:flex;justify-content:space-between;align-items:center;">
+        <h1>My Profile</h1>
+        <a href="{{ url_for('complete_profile') }}" class="btn btn-secondary btn-sm">Edit Profile</a>
+      </div>
+
+      <div class="card mb-2">
+        <div style="display:flex;gap:20px;align-items:flex-start;">
+          {% if user.profile_pic_url %}
+          <img src="{{ user.profile_pic_url }}" class="avatar-lg" alt="Profile" loading="lazy" decoding="async">
+          {% else %}
+          <div class="avatar-placeholder">{{ (user.full_name or user.email or 'U')[0].upper() }}</div>
+          {% endif %}
+          <div class="flex-1">
+            <h2 style="font-size:1.2rem;">{{ user.full_name or user.email }}</h2>
+            <p class="text-muted text-sm">{{ user.specialty or 'No specialty set' }}</p>
+            <div class="job-meta mt-1">
+              {% if user.country %}<span>{{ user.country }}</span>{% endif %}
+              <span class="text-green fw-600">{{ user.connects_balance }} connects</span>
+            </div>
+          </div>
+        </div>
+        {% if user.bio %}
+        <hr class="divider">
+        <p style="color:var(--text);line-height:1.7;">{{ user.bio }}</p>
+        {% endif %}
+        {% if skills %}
+        <div class="skills-list mt-2">
+          {% for s in skills %}<span class="skill-tag">{{ s }}</span>{% endfor %}
+        </div>
+        {% endif %}
+        {% if user.portfolio_links %}
+        {% set plinks = user.portfolio_links.split('\n') %}
+        <hr class="divider">
+        <h3 class="section-title" style="font-size:1rem;margin-bottom:8px;">Portfolio & Links</h3>
+        <ul style="list-style-type:none;padding:0;margin:0;display:flex;flex-direction:column;gap:6px;">
+          {% for link in plinks %}
+          {% set clean_link = link | trim %}
+          {% if clean_link %}
+          <li><a href="{{ clean_link }}" target="_blank" rel="noopener noreferrer" style="color:var(--primary);text-decoration:none;display:inline-flex;align-items:center;gap:4px;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
+            {{ clean_link }}
+          </a></li>
+          {% endif %}
+          {% endfor %}
+        </ul>
+        {% endif %}
+      </div>
+
+      <h2 class="section-title">Application History</h2>
+      {% if apps %}
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Job</th><th>Category</th><th>Connects Used</th><th>Status</th><th>Date</th></tr></thead>
+          <tbody>
+          {% for a in apps %}
+          <tr>
+            <td><a href="{{ url_for('worker_job_detail', job_id=a.job_id) }}">{{ a.title }}</a></td>
+            <td>{{ a.category }}</td>
+            <td>{{ a.connects_spent }}</td>
+            <td><span class="job-badge {{ 'badge-open' if a.status=='pending' else 'badge-real' if a.status=='accepted' else 'badge-closed' }}">{{ a.status | capitalize }}</span></td>
+            <td class="text-sm text-muted">{{ a.applied_at.strftime('%b %d, %Y') if a.applied_at else '' }}</td>
+          </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="empty-state"><p>No applications yet. <a href="{{ url_for('worker_jobs') }}">Browse jobs →</a></p></div>
+      {% endif %}
+    </main>
+  </div>
+</div>
+</div>
+{% endblock %}

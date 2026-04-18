@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Payments — TechBid{% endblock %}
+{% block body %}
+<div class="page-wrap">
+<div class="container">
+  <div class="page-header"><h1>Payment History</h1></div>
+  {% if pays %}
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Worker</th><th>Job</th><th>Amount (KES)</th><th>Status</th><th>Date</th></tr></thead>
+      <tbody>
+      {% for p in pays %}
+      <tr>
+        <td>{{ p.worker_name }}</td>
+        <td>{{ p.job_title }}</td>
+        <td>KES {{ "%.0f"|format(p.amount_kes) }}</td>
+        <td><span class="job-badge {{ 'badge-open' if p.status=='disbursed' else 'badge-robot' }}">{{ p.status | capitalize }}</span></td>
+        <td class="text-sm text-muted">{{ p.created_at.strftime('%b %d, %Y') if p.created_at else '' }}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty-state"><p>No payment records yet.</p></div>
+  {% endif %}
+</div>
+</div>
+{% endblock %}

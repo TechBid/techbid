@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}{{ job.title }} — TechBid Employer{% endblock %}
+{% block body %}
+<div class="page-wrap">
+<div class="container" style="max-width:820px;">
+  <a href="{{ url_for('employer_dashboard') }}" class="text-muted text-sm" style="display:inline-flex;align-items:center;gap:6px;margin-bottom:16px;">
+    ← Back to dashboard
+  </a>
+
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap;">
+      <div>
+        <h1 style="font-size:1.3rem;">{{ job.title }}</h1>
+        <div class="job-meta mt-1">
+          <span>{{ job.category }}</span>
+          <span class="job-badge {{ 'badge-fixed' if job.job_type=='fixed' else 'badge-hourly' if job.job_type=='hourly' else 'badge-daily' }}">{{ job.job_type | capitalize }}</span>
+          <span>${{ "%.0f"|format(job.budget_usd) }}</span>
+          {% if job.duration %}<span>{{ job.duration }}</span>{% endif %}
+          <span>{{ job.connects_required }} connects req.</span>
+          {% if job.created_at %}<span>Posted {{ job.created_at | time_ago }}</span>{% endif %}
+        </div>
+      </div>
+      <div>
+        <span class="job-badge {{ 'badge-open' if job.status=='open' else 'badge-closed' }}">{{ job.status | capitalize }}</span>
+      </div>
+    </div>
+
+    <hr class="divider">
+
+    <h2 class="section-title" style="font-size:.95rem;">Job Description</h2>
+    <div id="job-desc-md" class="job-description-md" style="color:var(--text);line-height:1.8;"></div>
+    <script>
+      (function(){
+        var raw = {{ job.description | tojson }};
+        var el = document.getElementById('job-desc-md');
+        if(window.marked) { el.innerHTML = marked.parse(raw); }
+        else { el.style.whiteSpace='pre-line'; el.textContent = raw; }
+      })();
+    </script>
+
+    <hr class="divider" style="margin-top:32px;">
+
+    <div style="display:flex;gap:12px;flex-wrap:wrap;">
+      {% if job.status == 'open' %}
+      <a href="{{ url_for('employer_applicants', job_id=job.id) }}" class="btn btn-primary">View Applicants</a>
+      {% else %}
+      <a href="{{ url_for('contract_room', job_id=job.id) }}" class="btn btn-primary">Go to Contract Room</a>
+      {% endif %}
+      <a href="{{ url_for('employer_dashboard') }}" class="btn btn-secondary">Back to Dashboard</a>
+    </div>
+  </div>
+</div>
+</div>
+{% endblock %}

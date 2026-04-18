@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+{% block title %}Manage Jobs — Admin{% endblock %}
+{% block body %}
+<div class="page-wrap"><div class="container">
+  <div class="layout-2col">
+    <aside class="sidebar"><ul class="sidebar-nav">
+      <li><a href="{{ url_for('admin_dashboard') }}">Dashboard</a></li>
+      <li><a href="{{ url_for('admin_jobs') }}" class="active">Jobs</a></li>
+      <li><a href="{{ url_for('admin_users') }}">Users</a></li>
+      <li><a href="{{ url_for('admin_payments') }}">Payments</a></li>
+      <li><a href="{{ url_for('admin_create_robot_job') }}">Create Robot Job</a></li>
+    </ul></aside>
+    <main>
+      <div class="page-header" style="display:flex;justify-content:space-between;align-items:center;">
+        <h1>All Jobs ({{ jobs|length }})</h1>
+        <div style="display:flex;gap:8px;">
+          <form method="POST" action="{{ url_for('admin_generate_ai_jobs') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-primary btn-sm">⚡ Generate AI Jobs</button>
+          </form>
+          <a href="{{ url_for('admin_create_robot_job') }}" class="btn btn-secondary btn-sm">+ Robot Job</a>
+        </div>
+      </div>
+      <div class="card" style="margin-bottom:14px;">
+        <div class="text-sm" style="display:flex;gap:18px;flex-wrap:wrap;">
+          <span><strong>AI jobs in last 24h:</strong> {{ ai_jobs_today }} / {{ ai_daily_limit }}</span>
+          <span><strong>Cooldown:</strong> {{ ai_cooldown_seconds }}s between trigger requests</span>
+          <span>
+            <strong>Last manual run:</strong>
+            {% if ai_last_run %}
+              {{ ai_last_run.created_at.strftime('%Y-%m-%d %H:%M UTC') }} ({{ ai_last_run.status }}, {{ ai_last_run.jobs_created }} job{{ 's' if ai_last_run.jobs_created != 1 }})
+            {% else %}
+              Never
+            {% endif %}
+          </span>
+        </div>
+        <div class="text-sm text-muted mt-1">Monitor token/request usage directly in your Google AI Studio dashboard.</div>
+      </div>
+
+      <!-- Bulk action bar (revealed when any checkbox selected) -->
+      <form method="POST" action="{{ url_for('admin_bulk_delete_jobs') }}" id="bulk-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div id="bulk-bar" style="display:none;background:var(--surface);border:1px solid var(--border);padding:10px 16px;border-radius:var(--radius);margin-bottom:12px;display:none;align-items:center;gap:12px;">
+          <span class="text-sm fw-600" id="sel-count">0 selected</span>
+          <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Delete all selected jobs? This cannot be undone.')">🗑 Delete Selected</button>
+          <button type="button" onclick="clearSelection()" class="btn btn-secondary btn-sm">Clear</button>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead><tr>
+              <th style="width:36px;"><input type="checkbox" id="select-all" title="Select all" onchange="toggleAll(this)"></th>
+              <th>Title</th>
+              <th>Category</th>
+              <th>Type</th>
+              <th>Budget</th>
+              <th>Source</th>
+              <th>Winner</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr></thead>
+            <tbody>
+            {% for job in jobs %}
+            <tr>
+              <td><input type="checkbox" name="job_ids" value="{{ job.id }}" class="job-chk" onchange="updateBulkBar()"></td>
+              <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="{{ job.title }}">{{ job.title }}</td>
+              <td class="text-sm">{{ job.category }}</td>
+              <td><span class="job-badge badge-{{ job.job_type }}">{{ job.job_type }}</span></td>
+              <td>${{ "%.0f"|format(job.budget_usd) }}</td>
+              <td>{{ '🤖 AI' if job.is_robot else '👤 Real' }}</td>
+              <td class="text-sm">{% if job.robot_name %}{{ job.robot_name }} ({{ job.connects_shown }}c){% else %}—{% endif %}</td>
+              <td><span class="job-badge badge-{{ job.status }}">{{ job.status }}</span></td>
+              <td>
+                <div style="display:flex;gap:6px;">
+                  <a href="{{ url_for('admin_edit_job', job_id=job.id) }}" class="btn btn-secondary btn-sm">Edit</a>
+                  <form method="POST" action="{{ url_for('admin_delete_job', job_id=job.id) }}" onsubmit="return confirm('Delete this job?')" style="display:inline;">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="btn btn-danger btn-sm">Del</button>
+                  </form>
+                </div>
+              </td>
+            </tr>
+            {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </form>
+    </main>
+  </div>
+</div></div>
+{% endblock %}
+{% block scripts %}
+<script>
+function toggleAll(master) {
+  document.querySelectorAll('.job-chk').forEach(cb => cb.checked = master.checked);
+  updateBulkBar();
+}
+function updateBulkBar() {
+  const checked = document.querySelectorAll('.job-chk:checked');
+  const bar = document.getElementById('bulk-bar');
+  document.getElementById('sel-count').textContent = checked.length + ' selected';
+  bar.style.display = checked.length > 0 ? 'flex' : 'none';
+  document.getElementById('select-all').indeterminate = checked.length > 0 && checked.length < document.querySelectorAll('.job-chk').length;
+}
+function clearSelection() {
+  document.querySelectorAll('.job-chk').forEach(cb => cb.checked = false);
+  document.getElementById('select-all').checked = false;
+  updateBulkBar();
+}
+</script>
+{% endblock %}

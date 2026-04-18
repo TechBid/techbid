@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}Server Error — TechBid{% endblock %}
+{% block body %}
+<div class="page-wrap" style="text-align:center;">
+  <div class="container" style="max-width:480px;">
+    <div style="font-size:5rem;line-height:1;margin-bottom:16px;">500</div>
+    <h1>Something went wrong</h1>
+    <p class="mt-1">An internal error occurred. Our team has been notified. Please try again shortly.</p>
+    <a href="{{ url_for('index') }}" class="btn btn-secondary mt-3">Go Home</a>
+  </div>
+</div>
+{% endblock %}

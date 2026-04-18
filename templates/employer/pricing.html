@@ -1,0 +1,164 @@
+{% extends "base.html" %}
+{% block title %}Subscription Pricing - TechBid{% endblock %}
+{% block body %}
+<div class="page-wrap">
+<div class="container" style="max-width:1200px;">
+  <div style="text-align:center;margin-bottom:48px;margin-top:32px;">
+    <h1 style="font-size:2.5rem;margin:0 0 12px 0;">Simple, Transparent Pricing</h1>
+    <p style="font-size:1.1rem;color:var(--text-muted);margin:0;">Choose the plan that fits your hiring needs</p>
+  </div>
+
+  {% if current_sub %}
+  <div style="background:#e8f5e9;border-left:4px solid #4caf50;padding:16px;margin-bottom:24px;border-radius:4px;">
+    <p style="margin:0;color:#2e7d32;"><strong>Current Plan:</strong> {{ current_sub.tier | capitalize if current_sub.tier else 'Active' }} - Expires on {{ current_sub.expires_at.strftime('%B %d, %Y') if current_sub.expires_at else 'N/A' }}</p>
+  </div>
+  {% endif %}
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:24px;margin-bottom:48px;">
+    {% for tier in tiers %}
+    <div style="border:2px solid {% if tier.get('featured') %}{{ tier.color }}{% else %}#e0e0e0{% endif %};border-radius:8px;overflow:hidden;display:flex;flex-direction:column;transition:transform 0.3s,box-shadow 0.3s;{% if tier.get('payg') and current_sub %}opacity:0.5{% endif %}" onmouseover="{% if not (tier.get('payg') and current_sub) %}this.style.transform='translateY(-8px)';this.style.boxShadow='0 8px 24px rgba(0,0,0,0.12)'{% endif %}" onmouseout="this.style.transform='none';this.style.boxShadow='none'">
+      {% if tier.get('featured') %}
+      <div style="background:{{ tier.color }};color:white;padding:8px;text-align:center;font-weight:600;">MOST POPULAR</div>
+      {% endif %}
+      <div style="padding:24px;flex:1;display:flex;flex-direction:column;">
+        <h2 style="margin:0 0 8px 0;font-size:1.5rem;color:var(--text-primary);">{{ tier.name }}</h2>
+        <p style="margin:0 0 16px 0;color:var(--text-muted);font-size:0.95rem;">{{ tier.best_for }}</p>
+        
+        <div style="margin:24px 0;border-top:1px solid #e0e0e0;padding-top:16px;">
+          <div style="font-size:2.5rem;font-weight:700;color:{{ tier.color }};margin:0;{% if tier.get('payg') and current_sub %}text-decoration:line-through;opacity:0.6{% endif %}">
+            ${{ tier.price }}<span style="font-size:1rem;color:var(--text-muted);">/{{ tier.period }}</span>
+          </div>
+        </div>
+
+        <ul style="list-style:none;padding:0;margin:0;flex:1;">
+          {% for feature in tier.features %}
+          <li style="padding:10px 0;border-bottom:1px solid #f0f0f0;color:var(--text-secondary);font-size:0.95rem;{% if tier.get('payg') and current_sub %}opacity:0.6{% endif %}">{{ feature }}</li>
+          {% endfor %}
+        </ul>
+
+        <div style="margin-top:24px;">
+          {% if tier.get('payg') and current_sub %}
+          <button class="btn" style="width:100%;background:#e0e0e0;color:#555;cursor:not-allowed;opacity:0.6;" disabled>You have a subscription</button>
+          {% elif current_sub and current_sub.tier == tier.tier_id | default(tier.name.lower()) %}
+          <button class="btn" style="width:100%;background:#e0e0e0;color:#555;cursor:not-allowed;" disabled>Current Plan</button>
+          {% else %}
+          <button class="btn btn-primary" style="width:100%;padding:12px;" onclick="subscribeToPlan('{{ tier.tier_id | default(tier.name.lower()) }}', {{ tier.price }})">
+            {% if tier.get('payg') %}Buy Now{% else %}Subscribe Now{% endif %}
+          </button>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <div style="background:var(--surface);padding:32px;border-radius:8px;margin-bottom:48px;">
+    <h3 style="margin-top:0;">What's Included in All Plans?</h3>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:24px;margin-top:24px;">
+      <div>
+        <h4 style="color:var(--text-primary);margin:0 0 8px 0;">Job Management</h4>
+        <p style="margin:0;color:var(--text-muted);font-size:0.95rem;">Post, edit, and manage your job listings with ease.</p>
+      </div>
+      <div>
+        <h4 style="color:var(--text-primary);margin:0 0 8px 0;">Messaging</h4>
+        <p style="margin:0;color:var(--text-muted);font-size:0.95rem;">Real-time messaging with freelancers throughout the project.</p>
+      </div>
+      <div>
+        <h4 style="color:var(--text-primary);margin:0 0 8px 0;">Escrow Protection</h4>
+        <p style="margin:0;color:var(--text-muted);font-size:0.95rem;">Secure escrow payments protect both employer and freelancer.</p>
+      </div>
+      <div>
+        <h4 style="color:var(--text-primary);margin:0 0 8px 0;">Analytics</h4>
+        <p style="margin:0;color:var(--text-muted);font-size:0.95rem;">Track job performance, applications, and spending.</p>
+      </div>
+      <div>
+        <h4 style="color:var(--text-primary);margin:0 0 8px 0;">Resources</h4>
+        <p style="margin:0;color:var(--text-muted);font-size:0.95rem;">Access hiring guides, templates, and best practices.</p>
+      </div>
+      <div>
+        <h4 style="color:var(--text-primary);margin:0 0 8px 0;">Dispute Resolution</h4>
+        <p style="margin:0;color:var(--text-muted);font-size:0.95rem;">Fair arbitration if issues arise during a project.</p>
+      </div>
+    </div>
+  </div>
+
+  <div style="background:var(--bg-secondary);padding:32px;border-radius:8px;text-align:center;border:1px solid var(--border-color);">
+    <h3 style="margin-top:0;color:var(--text-primary);">Frequently Asked Questions</h3>
+    <div style="display:grid;gap:24px;margin-top:24px;text-align:left;max-width:700px;margin-left:auto;margin-right:auto;">
+      <div>
+        <h4 style="margin:0 0 8px 0;color:var(--text-primary);">Can I change plans anytime?</h4>
+        <p style="margin:0;color:var(--text-muted);">Yes! Upgrade or downgrade anytime. Changes take effect on your next billing cycle.</p>
+      </div>
+      <div>
+        <h4 style="margin:0 0 8px 0;color:var(--text-primary);">What about the 14-day free trial?</h4>
+        <p style="margin:0;color:var(--text-muted);">New employers get a 14-day trial with Basic features. No credit card required to start.</p>
+      </div>
+      <div>
+        <h4 style="margin:0 0 8px 0;color:var(--text-primary);">Can I cancel anytime?</h4>
+        <p style="margin:0;color:var(--text-muted);">Absolutely. Cancel with one click. No penalties or hidden fees. Your subscription ends at the end of your current billing period.</p>
+      </div>
+      <div>
+        <h4 style="margin:0 0 8px 0;color:var(--text-primary);">Do you offer annual discounts?</h4>
+        <p style="margin:0;color:var(--text-muted);">Yes! Pay annually and get <strong>2 months free</strong> (save ~17% off the monthly rate).</p>
+      </div>
+      <div>
+        <h4 style="margin:0 0 8px 0;color:var(--text-primary);">What payment methods do you accept?</h4>
+        <p style="margin:0;color:var(--text-muted);">We accept all major credit/debit cards, M-Pesa, Pesalink, and bank transfers via Paystack and PesaPal.</p>
+      </div>
+    </div>
+  </div>
+
+  <div style="text-align:center;margin-top:48px;margin-bottom:32px;">
+    <p style="color:var(--text-muted);margin:0;margin-bottom:16px;">Need help choosing a plan? <a href="{{ url_for('contact') }}" style="color:var(--primary);text-decoration:none;font-weight:600;">Contact our team</a></p>
+  </div>
+</div>
+</div>
+
+<script>
+function subscribeToPlan(tier, price) {
+  // PAYG (starter) - redirect to post job page with checkout flow
+  if (tier === 'starter') {
+    if (!confirm('Ready to post a job for $2.99? You\'ll complete payment on the next step.')) return;
+    window.location.href = '{{ url_for("employer_post_job") }}';
+    return;
+  }
+
+  // Subscription tiers (basic, pro)
+  const message = `Subscribe to $${price}/month ${tier.charAt(0).toUpperCase() + tier.slice(1)} plan?`;
+  if (!confirm(message)) return;
+  
+  const btn = event.target;
+  const originalText = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Processing...';
+  
+  fetch('/employer/subscribe', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json','X-CSRF-Token':'{{ csrf_token() }}'},
+    body: JSON.stringify({tier: tier, amount_usd: price})
+  }).then(r => r.json()).then(data => {
+    if (data.redirect_url) window.location.href = data.redirect_url;
+    else { 
+      alert(data.error || 'Subscription failed'); 
+      btn.disabled = false; 
+      btn.textContent = originalText;
+    }
+  }).catch(err => { 
+    alert('Error: ' + err.message);
+    btn.disabled = false;
+    btn.textContent = originalText;
+  });
+}
+
+// Reset button state on page load to handle payment cancellations
+document.addEventListener('DOMContentLoaded', () => {
+  const buttons = document.querySelectorAll('button[onclick*="subscribeToPlan"]');
+  buttons.forEach(btn => {
+    if (btn.textContent === 'Processing...' || btn.textContent.includes('⏳')) {
+      btn.disabled = false;
+      btn.textContent = btn.innerHTML.includes('Buy Now') ? 'Buy Now' : 'Subscribe Now';
+    }
+  });
+});
+</script>
+{% endblock %}

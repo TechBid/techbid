@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — TechBid{% endblock %}
+{% block body %}
+<div class="page-wrap">
+<div class="container">
+  <div class="layout-2col">
+
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <ul class="sidebar-nav">
+        <li><a href="{{ url_for('worker_dashboard') }}" class="{{ 'active' if request.endpoint=='worker_dashboard' }}">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg> Dashboard</a></li>
+        <li><a href="{{ url_for('worker_jobs') }}">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg> Find Work</a></li>
+        <li><a href="{{ url_for('worker_profile') }}">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> My Profile</a></li>
+        <li><a href="{{ url_for('worker_buy_connects') }}">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg> Buy Connects</a></li>
+        <li><a href="{{ url_for('contact') }}">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> Contact Us</a></li>
+      </ul>
+    </aside>
+
+    <!-- Main -->
+    <main>
+      <div class="page-header">
+        <h1>Welcome back, {{ current_name }}!</h1>
+        <p>You have <strong class="text-green">{{ current_connects }} connects</strong> available.</p>
+      </div>
+
+      <!-- Stats -->
+      <div class="stats-grid mb-3">
+        <div class="stat-card">
+          <div class="stat-label">Connects</div>
+          <div class="stat-value text-green">{{ current_connects }}</div>
+          <div class="stat-sub"><a href="{{ url_for('worker_buy_connects') }}">Buy more →</a></div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Applications</div>
+          <div class="stat-value">{{ recent_apps | length }}</div>
+          <div class="stat-sub">recent</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Specialty</div>
+          <div class="stat-value" style="font-size:1rem;">{{ user.specialty or '—' }}</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Country</div>
+          <div class="stat-value" style="font-size:1rem;">{{ user.country or '—' }}</div>
+        </div>
+      </div>
+
+      <!-- Recent Applications -->
+      <h2 class="section-title">Recent Applications</h2>
+      {% if recent_apps %}
+      {% for app in recent_apps %}
+      <div class="job-card">
+        <div class="job-card-header">
+          <a href="{{ url_for('contract_room', job_id=app.job_id) if app.display_status == 'accepted' else url_for('worker_job_detail', job_id=app.job_id) }}" class="job-title">{{ app.title }}</a>
+          <span class="job-badge {{ 'badge-open' if app.display_status=='pending' else 'badge-real' if app.display_status=='accepted' else 'badge-closed' }}">
+            {{ app.display_status | capitalize }}
+          </span>
+        </div>
+        <div class="job-meta">
+          <span>{{ app.category }}</span>
+          <span>${{ "%.0f"|format(app.budget_usd) }} {{ app.job_type }}</span>
+          <span>{{ app.connects_spent }} connects used</span>
+        </div>
+      </div>
+      {% endfor %}
+      {% else %}
+      <div class="empty-state">
+        <p>No applications yet.</p>
+        <a href="{{ url_for('worker_jobs') }}" class="btn btn-primary mt-2">Browse Jobs</a>
+      </div>
+      {% endif %}
+
+      <!-- Notifications -->
+      <h2 class="section-title mt-3">Notifications</h2>
+      <div id="dashboard-notifications-feed" data-live-notifications data-limit="5">
+        {% if notifs %}
+          {% for n in notifs %}
+          <div class="notif-item">
+            <div class="notif-dot"></div>
+            <div class="notif-content">
+              {% if n.target_url %}
+              <a href="{{ n.target_url }}" class="notif-link">{{ n.display_message or n.message }}</a>
+              {% else %}
+              <div>{{ n.display_message or n.message }}</div>
+              {% endif %}
+              <div class="notif-time">{{ n.created_at | time_ago }}</div>
+            </div>
+          </div>
+          {% endfor %}
+        {% else %}
+          <div class="empty-state">
+            <p>No notifications yet.</p>
+          </div>
+        {% endif %}
+      </div>
+    </main>
+  </div>
+</div>
+</div>
+{% endblock %}

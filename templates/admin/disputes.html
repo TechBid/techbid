@@ -1,0 +1,176 @@
+{% extends "base.html" %}
+{% block title %}Dispute Management — Admin — TechBid{% endblock %}
+{% block body %}
+<div class="page-wrap">
+<div class="container" style="max-width:1200px;">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;">
+    <h1 style="margin:0;font-size:2rem;">Dispute Resolution Center</h1>
+    <div style="display:flex;gap:12px;">
+      <a href="{{ url_for('admin_expired_contracts') }}" class="btn btn-warning btn-sm" title="Manual review of expired contracts">
+        ⏱️ Expired Contracts
+      </a>
+      <a href="{{ url_for('employer_dashboard') }}" class="text-muted text-sm">← Back to admin</a>
+    </div>
+  </div>
+
+  <!-- Filter Tabs -->
+  <div style="display:flex;gap:8px;margin-bottom:24px;border-bottom:2px solid var(--border);padding-bottom:12px;">
+    <a href="{{ url_for('admin_disputes', status='all') }}" class="btn {% if status == 'all' %}btn-primary{% else %}btn-secondary{% endif %} btn-sm">
+      All ({{ disputes_count.all }})
+    </a>
+    <a href="{{ url_for('admin_disputes', status='open') }}" class="btn {% if status == 'open' %}btn-primary{% else %}btn-secondary{% endif %} btn-sm">
+      🔴 Open ({{ disputes_count.open }})
+    </a>
+    <a href="{{ url_for('admin_disputes', status='evidence_submitted') }}" class="btn {% if status == 'evidence_submitted' %}btn-primary{% else %}btn-secondary{% endif %} btn-sm">
+      📎 Evidence Submitted ({{ disputes_count.evidence_submitted }})
+    </a>
+    <a href="{{ url_for('admin_disputes', status='resolved') }}" class="btn {% if status == 'resolved' %}btn-primary{% else %}btn-secondary{% endif %} btn-sm">
+      ✓ Resolved ({{ disputes_count.resolved }})
+    </a>
+  </div>
+
+  {% if disputes %}
+  <div style="display:grid;gap:16px;">
+    {% for dispute in disputes %}
+    <div class="card" style="padding:16px;border-left:4px solid {% if dispute.status == 'open' %}#ff6b6b{% elif dispute.status == 'evidence_submitted' %}#ffd93d{% else %}#51cf66{% endif %};">
+      <div style="display:grid;grid-template-columns:1fr auto;gap:16px;">
+        <!-- Dispute Info -->
+        <div>
+          <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;">
+            <h3 style="margin:0;font-size:1.1rem;">Contract #{{ dispute.contract_id }}</h3>
+            <span style="padding:2px 8px;border-radius:4px;font-size:0.75rem;font-weight:600;
+              {% if dispute.status == 'open' %}background:#ffebee;color:#c62828;
+              {% elif dispute.status == 'evidence_submitted' %}background:#fff8e1;color:#f57f17;
+              {% else %}background:#e8f5e9;color:#2e7d32;
+              {% endif %}">
+              {{ dispute.status | replace('_', ' ') | title }}
+            </span>
+          </div>
+          
+          <p class="text-sm text-muted" style="margin:4px 0;">
+            <strong>Opened by:</strong> {{ dispute.opened_by_name }} ({{ dispute.opened_by_role | capitalize }})
+          </p>
+          
+          <p class="text-sm text-muted" style="margin:4px 0;">
+            <strong>Job:</strong> {{ dispute.job_title }}
+          </p>
+          
+          <p class="text-sm" style="margin:8px 0;"><strong>Reason:</strong> {{ dispute.reason or 'Not specified' }}</p>
+          
+          {% if dispute.status == 'resolved' %}
+          <div style="margin-top:8px;padding:8px;background:var(--surface);border-radius:6px;">
+            <strong class="text-xs" style="color:var(--text-muted);display:block;margin-bottom:4px;">ADMIN DECISION</strong>
+            <div class="text-sm">{{ dispute.admin_decision | title }} ({{ dispute.decision_percentage }}% to freelancer)</div>
+          </div>
+          {% endif %}
+        </div>
+
+        <!-- Action Button -->
+        <div style="display:flex;flex-direction:column;gap:8px;">
+          {% if dispute.status != 'resolved' %}
+          <button type="button" class="btn btn-primary btn-sm" onclick="openDisputeReview({{ dispute.id }})">
+            Review & Decide
+          </button>
+          {% else %}
+          <button type="button" class="btn btn-secondary btn-sm" onclick="openDisputeDetails({{ dispute.id }})">
+            View Details
+          </button>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="card" style="padding:32px;text-align:center;background:var(--surface);">
+    <p style="color:var(--text-muted);margin:0;">No disputes found for this status.</p>
+  </div>
+  {% endif %}
+</div>
+</div>
+
+<!-- Dispute Review Modal -->
+<div id="dispute-review-modal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:1000;overflow-y:auto;">
+  <div style="display:flex;justify-content:center;padding:24px;">
+    <div class="card" style="width:90%;max-width:900px;padding:24px;border-radius:12px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+        <h2 style="margin:0;font-size:1.3rem;">Review Dispute</h2>
+        <button onclick="closeDisputeReview()" style="background:none;border:none;font-size:1.5rem;cursor:pointer;color:var(--text-muted);">&times;</button>
+      </div>
+
+      <div id="dispute-review-content">
+        <!-- Dynamically loaded -->
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+async function openDisputeReview(disputeId) {
+  try {
+    const response = await fetch('{{ url_for("admin_dispute_detail", dispute_id=0) }}'.replace('/0/', '/' + disputeId + '/'));
+    const html = await response.text();
+    document.getElementById('dispute-review-content').innerHTML = html;
+    document.getElementById('dispute-review-modal').style.display = 'flex';
+  } catch(err) {
+    alert('Error loading dispute: ' + err);
+  }
+}
+
+function closeDisputeReview() {
+  document.getElementById('dispute-review-modal').style.display = 'none';
+}
+
+async function submitDisputeDecision(disputeId) {
+  const decision = document.getElementById('dispute-decision').value;
+  const percentage = parseInt(document.getElementById('dispute-percentage').value);
+  const reason = document.getElementById('dispute-reason').value.trim();
+  
+  if(!decision || !reason) {
+    alert('Please fill in all fields');
+    return;
+  }
+  
+  if(percentage < 0 || percentage > 100) {
+    alert('Percentage must be between 0 and 100');
+    return;
+  }
+  
+  const btn = document.querySelector('#dispute-review-modal button[type="submit"]');
+  btn.disabled = true;
+  btn.textContent = 'Submitting...';
+  
+  try {
+    const response = await fetch('{{ url_for("admin_resolve_dispute", dispute_id=0) }}'.replace('/0/', '/' + disputeId + '/'), {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        admin_decision: decision,
+        decision_percentage: percentage,
+        reason: reason
+      })
+    });
+    
+    if(response.ok) {
+      alert('Dispute resolved! Funds have been disbursed.');
+      closeDisputeReview();
+      setTimeout(() => location.reload(), 1000);
+    } else {
+      const err = await response.json();
+      alert('Error: ' + (err.error || 'Failed to resolve dispute'));
+      btn.disabled = false;
+      btn.textContent = 'Submit Decision';
+    }
+  } catch(err) {
+    console.error('Error:', err);
+    alert('Error submitting decision');
+    btn.disabled = false;
+    btn.textContent = 'Submit Decision';
+  }
+}
+
+function openDisputeDetails(disputeId) {
+  alert('Dispute #' + disputeId + ' - Full details view coming soon');
+}
+</script>
+{% endblock %}

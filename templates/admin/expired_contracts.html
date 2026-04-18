@@ -1,0 +1,141 @@
+{% extends "base.html" %}
+{% block title %}Expired Contracts — Admin — TechBid{% endblock %}
+{% block body %}
+<div class="page-wrap">
+<div class="container" style="max-width:1200px;">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;">
+    <h1 style="margin:0;font-size:2rem;">Expired Review Windows</h1>
+    <a href="{{ url_for('employer_dashboard') }}" class="text-muted text-sm">← Back to admin</a>
+  </div>
+
+  <!-- Summary Cards -->
+  <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));gap:16px;margin-bottom:24px;">
+    <div class="card" style="padding:16px;background:#ffebee;border-left:4px solid #d32f2f;">
+      <div class="text-xs text-muted" style="margin-bottom:4px;">Expired Contracts</div>
+      <div style="font-size:2rem;font-weight:700;color:#d32f2f;">{{ count }}</div>
+    </div>
+    <div class="card" style="padding:16px;background:#fff3e0;border-left:4px solid #f57c00;">
+      <div class="text-xs text-muted" style="margin-bottom:4px;">Total at Risk</div>
+      <div style="font-size:2rem;font-weight:700;color:#f57c00;">${{ "%.2f"|format(total_at_risk) }}</div>
+    </div>
+  </div>
+
+  {% if expired_contracts %}
+  <div style="display:grid;gap:16px;">
+    {% for contract in expired_contracts %}
+    <div class="card" style="padding:20px;border-left:4px solid #d32f2f;">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:20px;align-items:start;">
+        <!-- Job & Contract Info -->
+        <div>
+          <h3 style="margin:0 0 8px 0;font-size:1.1rem;">{{ contract.job_title }}</h3>
+          <p class="text-sm text-muted" style="margin:0;">Contract #{{ contract.id }}</p>
+          <div style="margin-top:8px;padding:8px;background:#ffe0e0;border-radius:6px;">
+            <div class="text-xs" style="color:#d32f2f;margin-bottom:2px;"><strong>EXPIRED</strong></div>
+            <div class="text-xs" style="color:#d32f2f;">{{ (now - contract.review_deadline).days }} days overdue</div>
+          </div>
+        </div>
+
+        <!-- Freelancer (Gets Paid) -->
+        <div>
+          <label class="text-xs text-muted" style="display:block;margin-bottom:6px;">✓ FREELANCER (Receives payment)</label>
+          <div style="padding:12px;background:#e8f5e9;border-radius:8px;border:2px solid #4caf50;">
+            <div style="font-weight:600;margin-bottom:4px;">{{ contract.freelancer_name }}</div>
+            <div class="text-sm" style="color:#2e7d32;margin-bottom:6px;">
+              <strong>${{ "%.2f"|format(contract.price_usd) }}</strong>
+            </div>
+            <small style="color:#666;display:block;word-break:break-all;">{{ contract.freelancer_email }}</small>
+          </div>
+        </div>
+
+        <!-- Employer (Defaulted) -->
+        <div>
+          <label class="text-xs text-muted" style="display:block;margin-bottom:6px;">✗ EMPLOYER (Defaulted)</label>
+          <div style="padding:12px;background:#ffebee;border-radius:8px;border:2px solid #d32f2f;">
+            <div style="font-weight:600;margin-bottom:4px;">{{ contract.employer_name }}</div>
+            <div class="text-sm" style="color:#d32f2f;margin-bottom:6px;">
+              Did not act on contract
+            </div>
+            <small style="color:#666;display:block;word-break:break-all;">{{ contract.employer_email }}</small>
+          </div>
+        </div>
+
+        <!-- Action Button -->
+        <div style="display:flex;flex-direction:column;gap:8px;;">
+          <button type="button" class="btn btn-success" 
+                  onclick="releaseToFreelancer({{ contract.id }}, '{{ contract.freelancer_name }}')">
+            Release Funds ✓
+          </button>
+          <button type="button" class="btn btn-secondary btn-sm" 
+                  onclick="viewDetails({{ contract.id }})">
+            View Details
+          </button>
+        </div>
+      </div>
+
+      <!-- Details Row -->
+      <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border);display:grid;grid-template-columns:repeat(4, 1fr);gap:16px;font-size:0.9rem;">
+        <div>
+          <label class="text-xs text-muted">Deadline Was</label>
+          <div>{{ contract.review_deadline.strftime('%b %d, %Y') }}</div>
+        </div>
+        <div>
+          <label class="text-xs text-muted">Contract Amount</label>
+          <div>${{ "%.2f"|format(contract.price_usd) }}</div>
+        </div>
+        <div>
+          <label class="text-xs text-muted">Status</label>
+          <div><span style="background:#f3e5f5;color:#7b1fa2;padding:2px 6px;border-radius:4px;font-size:0.8rem;">{{ contract.status | title }}</span></div>
+        </div>
+        <div>
+          <label class="text-xs text-muted">Created</label>
+          <div>{{ contract.created_at.strftime('%b %d, %Y') if contract.created_at else 'N/A' }}</div>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="card" style="padding:32px;text-align:center;background:var(--surface);">
+    <p style="color:var(--text-muted);margin:0;font-size:1.1rem;">✓ No expired contracts</p>
+    <p class="text-sm text-muted" style="margin:8px 0 0 0;">All review windows are still active.</p>
+  </div>
+  {% endif %}
+</div>
+</div>
+
+<script>
+const now = new Date();
+
+async function releaseToFreelancer(contractId, freelancerName) {
+  if(!confirm(`Release $${contractId} to ${freelancerName}? This will mark the contract as complete and send the funds.`)) {
+    return;
+  }
+  
+  try {
+    const csrfToken = document.querySelector('input[name="csrf_token"]')?.value || '';
+    const response = await fetch(`/admin/contracts/${contractId}/release-to-freelancer`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'X-CSRFToken': csrfToken
+      },
+      body: `csrf_token=${encodeURIComponent(csrfToken)}`
+    });
+    
+    if(response.ok) {
+      alert('✓ Funds released to freelancer. Email notification sent.');
+      setTimeout(() => location.reload(), 1500);
+    } else {
+      const err = await response.json();
+      alert('Error: ' + (err.error || 'Failed to release'));
+    }
+  } catch(err) {
+    alert('Error: ' + err.message);
+  }
+}
+
+function viewDetails(contractId) {
+  alert('Full contract details for #' + contractId + ' can be viewed separately');
+}
+</script>
+{% endblock %}

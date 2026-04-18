@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}Your Privacy Choices — TechBid{% endblock %}
+{% block body %}
+<div class="page-wrap"><div class="container" style="max-width:920px;">
+  <div class="page-header">
+    <h1>Your privacy choices</h1>
+    <p>Information about privacy rights and opt-out preferences. This is a general template.</p>
+  </div>
+  <div class="card">
+    <h2 class="section-title">Access, correction, and deletion</h2>
+    <p class="text-sm text-muted">You may request access to, correction of, or deletion of certain personal information where applicable.</p>
+
+    <h2 class="section-title mt-2">Opt-out preferences</h2>
+    <p class="text-sm text-muted">Where applicable, you may opt out of certain processing. To submit a request, use <a href="{{ url_for('contact') }}">Contact</a> and include “Privacy request” in the message.</p>
+
+    <h2 class="section-title mt-2">California residents</h2>
+    <p class="text-sm text-muted">California residents may have additional rights under applicable law. See <a href="{{ url_for('ca_notice') }}">CA notice at collection</a>.</p>
+  </div>
+</div></div>
+{% endblock %}

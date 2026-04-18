@@ -1,0 +1,110 @@
+<style>
+  .evidence-section { 
+    margin: 16px 0; 
+    padding: 12px; 
+    background: var(--surface); 
+    border-radius: 8px; 
+    border-left: 3px solid var(--primary);
+  }
+  .evidence-link { 
+    display: inline-block; 
+    padding: 4px 8px; 
+    background: var(--primary); 
+    color: white; 
+    border-radius: 4px; 
+    margin: 2px; 
+    font-size: 0.85rem;
+  }
+</style>
+
+<div style="max-height:70vh;overflow-y:auto;">
+  <div style="margin-bottom:24px;">
+    <h3 style="margin:0 0 12px 0;">{{ dispute.job_title }}</h3>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
+      <div>
+        <label class="form-label">Contract ID</label>
+        <div style="font-weight:600;">#{{ dispute.contract_id }}</div>
+      </div>
+      <div>
+        <label class="form-label">Current Status</label>
+        <div style="font-weight:600;">{{ dispute.status | replace('_', ' ') | title }}</div>
+      </div>
+      <div>
+        <label class="form-label">Opened By</label>
+        <div style="font-weight:600;">{{ dispute.opened_by_name }} ({{ dispute.opened_by_role | capitalize }})</div>
+      </div>
+      <div>
+        <label class="form-label">Date Opened</label>
+        <div style="font-weight:600;">{{ dispute.created_at.strftime('%b %d, %Y %I:%M %p') if dispute.created_at else 'N/A' }}</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Claimant Evidence -->
+  <div class="evidence-section">
+    <h4 style="margin:0 0 8px 0;">{{ dispute.opened_by_name }}'s Evidence</h4>
+    <p class="text-sm text-muted" style="margin:0 0 8px 0;">{{ dispute.reason }}</p>
+    {% if dispute.claimant_evidence %}
+      {% set evidence = dispute.claimant_evidence if dispute.claimant_evidence is string else dispute.claimant_evidence %}
+      <div style="margin-top:8px;">
+        {% for item in evidence %}
+          <a href="{{ item.url }}" target="_blank" class="evidence-link">{{ item.title or 'View Evidence' }}</a>
+        {% endfor %}
+      </div>
+    {% else %}
+      <p class="text-sm text-muted" style="margin:0;">No evidence submitted yet</p>
+    {% endif %}
+  </div>
+
+  <!-- Respondent Evidence -->
+  <div class="evidence-section">
+    <h4 style="margin:0 0 8px 0;">Respondent's Evidence</h4>
+    {% if dispute.respondent_evidence %}
+      {% set evidence = dispute.respondent_evidence if dispute.respondent_evidence is string else dispute.respondent_evidence %}
+      <div style="margin-top:8px;">
+        {% for item in evidence %}
+          <a href="{{ item.url }}" target="_blank" class="evidence-link">{{ item.title or 'View Evidence' }}</a>
+        {% endfor %}
+      </div>
+    {% else %}
+      <p class="text-sm text-muted" style="margin:0;">No evidence submitted yet</p>
+    {% endif %}
+  </div>
+
+  <!-- Contract Amount -->
+  <div style="margin:16px 0;padding:12px;background:#f0f7ff;border-radius:8px;">
+    <strong class="text-xs" style="color:var(--primary);display:block;margin-bottom:4px;">CONTRACT AMOUNT</strong>
+    <div style="font-weight:700;font-size:1.3rem;color:var(--primary);">${{ "%.2f"|format(dispute.contract_price_usd) }}</div>
+  </div>
+
+  <!-- Admin Decision Form -->
+  <form style="margin-top:24px;padding-top:16px;border-top:1px solid var(--border);">
+    <h4 style="margin:0 0 16px 0;">Make a Decision</h4>
+    
+    <div style="margin-bottom:16px;">
+      <label class="form-label" for="dispute-decision">Decision Type</label>
+      <select id="dispute-decision" class="form-input" style="width:100%;" required>
+        <option value="">Select...</option>
+        <option value="freelancer_full">100% to Freelancer (Approve full work)</option>
+        <option value="employer_full">100% to Employer (Full refund)</option>
+        <option value="split">Custom Split</option>
+      </select>
+    </div>
+
+    <div style="margin-bottom:16px;">
+      <label class="form-label" for="dispute-percentage">Freelancer %</label>
+      <input type="number" id="dispute-percentage" class="form-input" min="0" max="100" step="1" value="50" style="width:100%;" placeholder="0-100">
+      <small class="text-muted" style="display:block;margin-top:4px;">Employer gets the remainder</small>
+    </div>
+
+    <div style="margin-bottom:16px;">
+      <label class="form-label" for="dispute-reason">Decision Reason (visible to both parties)</label>
+      <textarea id="dispute-reason" class="form-textarea" rows="3" style="width:100%;" placeholder="Explain your decision..." required></textarea>
+    </div>
+
+    <div style="display:flex;gap:12px;justify-content:flex-end;">
+      <button type="button" class="btn btn-secondary" onclick="closeDisputeReview()">Cancel</button>
+      <button type="button" class="btn btn-primary" onclick="submitDisputeDecision({{ dispute.id }})">Submit Decision</button>
+    </div>
+  </form>
+</div>
