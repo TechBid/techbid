@@ -1586,7 +1586,22 @@ def _ramp_simulated_count(elapsed_minutes: int, start_minutes: int, end_minutes:
     return min(target, int(round(target * pct)))
 
 
-def _simulate_robot_activity(job_id: int, created_at, awarded_at) -> tuple[int, int, int]:
+def _get_max_simulated_applicants(category: str) -> int:
+    """Get max simulated applicants based on job category difficulty."""
+    # Toughest categories: max 5 applicants (hard to get hired, less competition)
+    toughest = {"Game Development", "Machine Learning / AI", "Cybersecurity"}
+    if category in toughest:
+        return 5
+    
+    # Simpler category: max 20 applicants (high competition)
+    if category == "Virtual Assistance":
+        return 20
+    
+    # Default for other categories: max 13 applicants
+    return 13
+
+
+def _simulate_robot_activity(job_id: int, created_at, awarded_at, category: str = "") -> tuple[int, int, int]:
     """Return generated (proposals, invites, interviews) for robot jobs."""
     if not created_at:
         return (0, 0, 0)
@@ -1605,7 +1620,11 @@ def _simulate_robot_activity(job_id: int, created_at, awarded_at) -> tuple[int, 
 
     seed = int(hashlib.sha256(f"robot-activity-{job_id}".encode()).hexdigest()[:8], 16)
     rng = random.Random(seed)
-    proposal_target = rng.randint(14, 42)
+    
+    # Get max applicants based on category difficulty
+    max_applicants = _get_max_simulated_applicants(category)
+    min_applicants = max(2, max_applicants // 2)  # Min is at least 2 or half of max
+    proposal_target = rng.randint(min_applicants, max_applicants)
     invite_target = rng.randint(2, min(10, max(2, proposal_target // 3)))
     interview_target = rng.randint(1, min(5, max(1, invite_target)))
 
@@ -1629,6 +1648,7 @@ def _apply_robot_activity(job: dict[str, Any], real_application_count: int) -> N
             int(job.get("id") or 0),
             job.get("created_at"),
             job.get("awarded_at"),
+            job.get("category", ""),
         )
         job["simulated_applicants"] = proposals
         job["simulated_invites"] = invites
