@@ -495,6 +495,7 @@ class MySQLStore:
         jobs    = self.t("jobs")
         winners = self.t("robot_winners")
         rnames  = self.t("robot_name_pool")
+        enames  = self.t("employer_name_pool")
         apps    = self.t("applications")
         pays    = self.t("payments")
         epays   = self.t("employer_payments")
@@ -627,6 +628,14 @@ class MySQLStore:
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
             """)
+            cur.execute(f"""
+                CREATE TABLE IF NOT EXISTS {enames} (
+                    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                    display_name VARCHAR(120) NOT NULL UNIQUE,
+                    is_active TINYINT NOT NULL DEFAULT 1,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+            """)
             try:
                 cur.execute(f"ALTER TABLE {winners} ADD COLUMN awarded_at DATETIME;")
             except Exception:
@@ -655,6 +664,19 @@ class MySQLStore:
                     try:
                         cur.execute(
                             f"INSERT INTO {rnames} (display_name, is_active) VALUES (%s, 1)",
+                            (n,),
+                        )
+                    except Exception:
+                        pass
+            
+            # Seed initial employer names if table is empty.
+            cur.execute(f"SELECT COUNT(*) FROM {enames}")
+            existing_enames = int(cur.fetchone()[0] or 0)
+            if existing_enames == 0:
+                for n in _AI_EMPLOYER_NAMES:
+                    try:
+                        cur.execute(
+                            f"INSERT INTO {enames} (display_name, is_active) VALUES (%s, 1)",
                             (n,),
                         )
                     except Exception:
@@ -1296,6 +1318,30 @@ _AI_EMPLOYER_NAMES = [
     "Professional Tech Services", "Advanced Solutions Group", "Tech Excellence Ltd",
 ]
 
+def _get_active_robot_names(store: MySQLStore) -> list[str]:
+    """Load active robot names from database. Falls back to hardcoded list if DB empty."""
+    try:
+        names = store.query_all(
+            f"SELECT display_name FROM {store.t('robot_name_pool')} WHERE is_active=1 ORDER BY display_name"
+        )
+        if names:
+            return [n.get("display_name") for n in names]
+    except Exception as exc:
+        LOG.warning("Failed to load robot names from DB: %s", exc)
+    return _AI_ROBOT_NAMES  # Fallback to hardcoded
+
+def _get_active_employer_names(store: MySQLStore) -> list[str]:
+    """Load active employer names from database. Falls back to hardcoded list if DB empty."""
+    try:
+        names = store.query_all(
+            f"SELECT display_name FROM {store.t('employer_name_pool')} WHERE is_active=1 ORDER BY display_name"
+        )
+        if names:
+            return [n.get("display_name") for n in names]
+    except Exception as exc:
+        LOG.warning("Failed to load employer names from DB: %s", exc)
+    return _AI_EMPLOYER_NAMES  # Fallback to hardcoded
+
 def _generate_ai_jobs(store: MySQLStore) -> int:
     """Generate AI-powered job postings. Simple, direct, free-tier safe."""
     if not SETTINGS.gemini_api_key:
@@ -1404,7 +1450,7 @@ def _generate_ai_jobs(store: MySQLStore) -> int:
                 
                 connects_req = random.randint(10, 40)
                 winner_conn, winner_completed_jobs, winner_success_rate, winner_style = _build_robot_winner_profile()
-                ai_employer_name = random.choice(_AI_EMPLOYER_NAMES)
+                ai_employer_name = _pick_employer_name(store)
                 
                 # Insert job with randomized AI employer name
                 job_id = store.execute(
@@ -1626,9 +1672,22 @@ def _get_simulated_name_pool(store: MySQLStore) -> list[str]:
     names = [str(r.get("display_name", "")).strip() for r in rows if r.get("display_name")]
     return names or list(_AI_ROBOT_NAMES)
 
+def _get_employer_name_pool(store: MySQLStore) -> list[str]:
+    rows = store.query_all(
+        f"SELECT display_name FROM {store.t('employer_name_pool')} WHERE is_active=1 ORDER BY id ASC",
+        (),
+    )
+    names = [str(r.get("display_name", "")).strip() for r in rows if r.get("display_name")]
+    return names or list(_AI_EMPLOYER_NAMES)
+
 def _pick_robot_name(store: MySQLStore) -> str:
     import random
     names = _get_simulated_name_pool(store)
+    return random.choice(names)
+
+def _pick_employer_name(store: MySQLStore) -> str:
+    import random
+    names = _get_employer_name_pool(store)
     return random.choice(names)
 
 def _interview_winner_names(store: MySQLStore, job_id: int, count: int) -> list[str]:
@@ -5902,7 +5961,7 @@ def admin_create_robot_job():
         duration = request.form.get("duration", "1 month").strip()[:80]
         connects = int(request.form.get("connects_required", 20) or 20)
         robot_name  = request.form.get("robot_name", "").strip() or _pick_robot_name(STORE)
-        ai_employer_name = request.form.get("employer_name", "").strip() or random.choice(_AI_EMPLOYER_NAMES)
+        ai_employer_name = request.form.get("employer_name", "").strip() or _pick_employer_name(STORE)
         requested_robot_conn = request.form.get("robot_connects", type=int)
         auto_conn, winner_completed_jobs, winner_success_rate, winner_style = _build_robot_winner_profile()
         robot_conn = int(requested_robot_conn or auto_conn)
@@ -5922,8 +5981,10 @@ def admin_create_robot_job():
         )
         flash("Robot job created!", "success"); return redirect(url_for("admin_jobs"))
     categories_text = "\n".join(JOB_CATEGORIES)
+    robot_names_db = _get_simulated_name_pool(STORE)
+    employer_names_db = _get_employer_name_pool(STORE)
     return render_template("admin/create_robot_job.html", categories=JOB_CATEGORIES, job_types=JOB_TYPES,
-                           robot_names=_AI_ROBOT_NAMES, employer_names=_AI_EMPLOYER_NAMES, categories_text=categories_text)
+                           robot_names=robot_names_db, employer_names=employer_names_db, categories_text=categories_text)
 
 
 @app.route("/admin/jobs/generate-ai", methods=["POST"])
@@ -6054,6 +6115,150 @@ def admin_edit_job(job_id):
         flash("Job updated successfully.", "success")
         return redirect(url_for("admin_jobs"))
     return render_template("admin/edit_job.html", job=job, categories=JOB_CATEGORIES, job_types=JOB_TYPES)
+
+
+@app.route("/admin/robot-names")
+@admin_required
+def admin_robot_names():
+    """Manage robot names pool."""
+    names = STORE.query_all(
+        f"SELECT * FROM {STORE.t('robot_name_pool')} ORDER BY created_at DESC"
+    )
+    return render_template("admin/robot_names.html", names=names)
+
+
+@app.route("/admin/robot-names/add", methods=["POST"])
+@admin_required
+def admin_add_robot_name():
+    """Add a new robot name."""
+    if not verify_csrf():
+        flash("Invalid request.", "error")
+    else:
+        name = request.form.get("name", "").strip()[:120]
+        if not name:
+            flash("Name cannot be empty.", "error")
+        else:
+            try:
+                STORE.execute(
+                    f"INSERT INTO {STORE.t('robot_name_pool')} (display_name, is_active) VALUES (%s, 1)",
+                    (name,),
+                )
+                flash(f"Robot name '{name}' added successfully.", "success")
+            except Exception as exc:
+                if "Duplicate" in str(exc):
+                    flash(f"Robot name '{name}' already exists.", "error")
+                else:
+                    flash(f"Error adding robot name: {exc}", "error")
+    return redirect(url_for("admin_robot_names"))
+
+
+@app.route("/admin/robot-names/<int:name_id>/toggle", methods=["POST"])
+@admin_required
+def admin_toggle_robot_name(name_id):
+    """Toggle robot name active status."""
+    if not verify_csrf():
+        flash("Invalid request.", "error")
+    else:
+        name = STORE.query_one(
+            f"SELECT * FROM {STORE.t('robot_name_pool')} WHERE id=%s", (name_id,)
+        )
+        if name:
+            new_status = 1 if not name.get("is_active") else 0
+            STORE.execute(
+                f"UPDATE {STORE.t('robot_name_pool')} SET is_active=%s WHERE id=%s",
+                (new_status, name_id),
+            )
+            status_text = "enabled" if new_status else "disabled"
+            flash(f"Robot name {status_text}.", "success")
+        else:
+            flash("Robot name not found.", "error")
+    return redirect(url_for("admin_robot_names"))
+
+
+@app.route("/admin/robot-names/<int:name_id>/delete", methods=["POST"])
+@admin_required
+def admin_delete_robot_name(name_id):
+    """Delete a robot name."""
+    if not verify_csrf():
+        flash("Invalid request.", "error")
+    else:
+        STORE.execute(
+            f"DELETE FROM {STORE.t('robot_name_pool')} WHERE id=%s", (name_id,)
+        )
+        flash("Robot name deleted.", "success")
+    return redirect(url_for("admin_robot_names"))
+
+
+@app.route("/admin/employer-names")
+@admin_required
+def admin_employer_names():
+    """Manage employer names pool."""
+    names = STORE.query_all(
+        f"SELECT * FROM {STORE.t('employer_name_pool')} ORDER BY created_at DESC"
+    )
+    return render_template("admin/employer_names.html", names=names)
+
+
+@app.route("/admin/employer-names/add", methods=["POST"])
+@admin_required
+def admin_add_employer_name():
+    """Add a new employer name."""
+    if not verify_csrf():
+        flash("Invalid request.", "error")
+    else:
+        name = request.form.get("name", "").strip()[:120]
+        if not name:
+            flash("Name cannot be empty.", "error")
+        else:
+            try:
+                STORE.execute(
+                    f"INSERT INTO {STORE.t('employer_name_pool')} (display_name, is_active) VALUES (%s, 1)",
+                    (name,),
+                )
+                flash(f"Employer name '{name}' added successfully.", "success")
+            except Exception as exc:
+                if "Duplicate" in str(exc):
+                    flash(f"Employer name '{name}' already exists.", "error")
+                else:
+                    flash(f"Error adding employer name: {exc}", "error")
+    return redirect(url_for("admin_employer_names"))
+
+
+@app.route("/admin/employer-names/<int:name_id>/toggle", methods=["POST"])
+@admin_required
+def admin_toggle_employer_name(name_id):
+    """Toggle employer name active status."""
+    if not verify_csrf():
+        flash("Invalid request.", "error")
+    else:
+        name = STORE.query_one(
+            f"SELECT * FROM {STORE.t('employer_name_pool')} WHERE id=%s", (name_id,)
+        )
+        if name:
+            new_status = 1 if not name.get("is_active") else 0
+            STORE.execute(
+                f"UPDATE {STORE.t('employer_name_pool')} SET is_active=%s WHERE id=%s",
+                (new_status, name_id),
+            )
+            status_text = "enabled" if new_status else "disabled"
+            flash(f"Employer name {status_text}.", "success")
+        else:
+            flash("Employer name not found.", "error")
+    return redirect(url_for("admin_employer_names"))
+
+
+@app.route("/admin/employer-names/<int:name_id>/delete", methods=["POST"])
+@admin_required
+def admin_delete_employer_name(name_id):
+    """Delete an employer name."""
+    if not verify_csrf():
+        flash("Invalid request.", "error")
+    else:
+        STORE.execute(
+            f"DELETE FROM {STORE.t('employer_name_pool')} WHERE id=%s", (name_id,)
+        )
+        flash("Employer name deleted.", "success")
+    return redirect(url_for("admin_employer_names"))
 
 
 @app.route("/admin/payments")

@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Simulated Applicant Names — Admin{% endblock %}
+{% block title %}Employer Names — Admin{% endblock %}
 {% block body %}
 <div class="page-wrap"><div class="container">
   <div class="layout-2col">
@@ -8,31 +8,30 @@
       <li><a href="{{ url_for('admin_jobs') }}">Jobs</a></li>
       <li><a href="{{ url_for('admin_users') }}">Users</a></li>
       <li><a href="{{ url_for('admin_payments') }}">Payments</a></li>
-      <li><a href="{{ url_for('admin_create_robot_job') }}">Create Robot Job</a></li>
-      <li><a href="{{ url_for('admin_robot_names') }}" class="active">Robot Names</a></li>
-      <li><a href="{{ url_for('admin_employer_names') }}">Employer Names</a></li>
+      <li><a href="{{ url_for('admin_robot_names') }}">Robot Names</a></li>
+      <li><a href="{{ url_for('admin_employer_names') }}" class="active">Employer Names</a></li>
     </ul></aside>
     <main>
       <div class="page-header">
-        <h1>Simulated Applicant Names</h1>
-        <p>Manage names used for robot interview shortlists and top shortlisted profiles.</p>
+        <h1>Employer Names</h1>
+        <p>Manage company names used for simulated AI job postings.</p>
       </div>
 
       <div class="card mb-3" style="max-width:500px;">
-        <h2 class="section-title">Add New Robot Name</h2>
-        <form method="POST" action="{{ url_for('admin_add_robot_name') }}">
+        <h2 class="section-title">Add New Employer Name</h2>
+        <form method="POST" action="{{ url_for('admin_add_employer_name') }}">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <div class="form-group">
-            <label class="form-label">Name *</label>
-            <input type="text" name="name" class="form-input" placeholder="e.g., Aisha M." required maxlength="120">
+            <label class="form-label">Company Name *</label>
+            <input type="text" name="name" class="form-input" placeholder="e.g., TechVision Solutions" required maxlength="120">
           </div>
-          <button type="submit" class="btn btn-primary btn-block">Add Robot Name</button>
+          <button type="submit" class="btn btn-primary btn-block">Add Employer Name</button>
         </form>
       </div>
 
       <div class="table-wrap">
         <table>
-          <thead><tr><th>Name</th><th>Status</th><th>Added</th><th>Actions</th></tr></thead>
+          <thead><tr><th>Company Name</th><th>Status</th><th>Added</th><th>Actions</th></tr></thead>
           <tbody>
             {% if names %}
               {% for n in names %}
@@ -45,13 +44,13 @@
                 </td>
                 <td class="text-sm text-muted">{{ n.created_at.strftime('%Y-%m-%d %H:%M') if n.created_at else '—' }}</td>
                 <td style="display:flex;gap:6px;">
-                  <form method="POST" action="{{ url_for('admin_toggle_robot_name', name_id=n.id) }}" style="display:inline;">
+                  <form method="POST" action="{{ url_for('admin_toggle_employer_name', name_id=n.id) }}" style="display:inline;">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <button type="submit" class="btn btn-secondary btn-sm" title="{{ 'Deactivate' if n.is_active else 'Reactivate' }}">
                       {{ '✓ Active' if n.is_active else 'Inactive' }}
                     </button>
                   </form>
-                  <form method="POST" action="{{ url_for('admin_delete_robot_name', name_id=n.id) }}" onsubmit="return confirm('Delete this name?');" style="display:inline;">
+                  <form method="POST" action="{{ url_for('admin_delete_employer_name', name_id=n.id) }}" onsubmit="return confirm('Delete this employer name?');" style="display:inline;">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <button type="submit" class="btn btn-danger btn-sm">Delete</button>
                   </form>
@@ -59,7 +58,7 @@
               </tr>
               {% endfor %}
             {% else %}
-              <tr><td colspan="4" class="text-center text-muted">No robot names yet. Add one to get started!</td></tr>
+              <tr><td colspan="4" class="text-center text-muted">No employer names yet. Add one to get started!</td></tr>
             {% endif %}
           </tbody>
         </table>

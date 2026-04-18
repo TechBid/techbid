@@ -12,6 +12,8 @@
         <li><a href="{{ url_for('admin_payments') }}" class="{{ 'active' if request.endpoint=='admin_payments' }}">Payments</a></li>
         <li><a href="{{ url_for('admin_job_reports') }}" class="{{ 'active' if request.endpoint=='admin_job_reports' }}">Job Reports</a></li>
         <li><a href="{{ url_for('admin_create_robot_job') }}">Create Robot Job</a></li>
+        <li><a href="{{ url_for('admin_robot_names') }}">Robot Names</a></li>
+        <li><a href="{{ url_for('admin_employer_names') }}">Employer Names</a></li>
         <li><a href="{{ url_for('admin_logout') }}" style="color:var(--danger);">Log out</a></li>
       </ul>
     </aside>
