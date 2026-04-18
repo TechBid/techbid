@@ -18,15 +18,12 @@
         <p>Manage names used for robot interview shortlists and top shortlisted profiles.</p>
       </div>
 
-      <div class="card mb-3" style="max-width:500px;">
-        <h2 class="section-title">Add New Robot Name</h2>
-        <form method="POST" action="{{ url_for('admin_add_robot_name') }}">
+      <div class="card mb-3">
+        <h2 class="section-title">Add Names (one per line)</h2>
+        <form method="POST">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <div class="form-group">
-            <label class="form-label">Name *</label>
-            <input type="text" name="name" class="form-input" placeholder="e.g., Aisha M." required maxlength="120">
-          </div>
-          <button type="submit" class="btn btn-primary btn-block">Add Robot Name</button>
+          <textarea name="names_bulk" class="form-textarea" rows="6" placeholder="Aisha M.&#10;Kenji S.&#10;Lucas R." required></textarea>
+          <button type="submit" class="btn btn-primary mt-2">Add to Pool</button>
         </form>
       </div>
 
@@ -44,14 +41,12 @@
                   </span>
                 </td>
                 <td class="text-sm text-muted">{{ n.created_at.strftime('%Y-%m-%d %H:%M') if n.created_at else '—' }}</td>
-                <td style="display:flex;gap:6px;">
-                  <form method="POST" action="{{ url_for('admin_toggle_robot_name', name_id=n.id) }}" style="display:inline;">
+                <td style="display:flex;gap:8px;">
+                  <form method="POST" action="{{ url_for('admin_robot_name_toggle', name_id=n.id) }}">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                    <button type="submit" class="btn btn-secondary btn-sm" title="{{ 'Deactivate' if n.is_active else 'Reactivate' }}">
-                      {{ '✓ Active' if n.is_active else 'Inactive' }}
-                    </button>
+                    <button type="submit" class="btn btn-secondary btn-sm">{{ 'Disable' if n.is_active else 'Enable' }}</button>
                   </form>
-                  <form method="POST" action="{{ url_for('admin_delete_robot_name', name_id=n.id) }}" onsubmit="return confirm('Delete this name?');" style="display:inline;">
+                  <form method="POST" action="{{ url_for('admin_robot_name_delete', name_id=n.id) }}" onsubmit="return confirm('Delete this name?');">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <button type="submit" class="btn btn-danger btn-sm">Delete</button>
                   </form>
