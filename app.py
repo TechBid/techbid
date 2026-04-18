@@ -6309,13 +6309,16 @@ def sitemap_xml():
 # ═══════════════════════════════════════════════════════════════════════════════
 # Verification Files (Google Search Console, etc.)
 # ═══════════════════════════════════════════════════════════════════════════════
-@app.route("/<regex(r'google[a-f0-9]{16}\.html'):filename>")
+@app.route("/<filename>")
 def serve_verification_file(filename):
-    """Serve Google Search Console verification files from static folder at root."""
-    try:
-        return send_from_directory(ROOT / "static", filename)
-    except Exception:
-        return flask_abort(404)
+    """Serve Google Search Console verification files from static folder."""
+    # Only serve google verification files (google*.html)
+    if filename.startswith("google") and filename.endswith(".html"):
+        try:
+            return send_from_directory(ROOT / "static", filename)
+        except Exception:
+            pass
+    return flask_abort(404)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
