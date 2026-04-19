@@ -141,83 +141,88 @@
   <script>
     let pendingJobData = null;
 
-    // Initialize form on page load
-    document.addEventListener('DOMContentLoaded', function() {
-      document.getElementById('job_type').dispatchEvent(new Event('change'));
-    });
+    // Attach job type change handler
+    const jobTypeSelect = document.getElementById('job_type');
+    if (jobTypeSelect) {
+      jobTypeSelect.addEventListener('change', function() {
+        const jobType = this.value;
+        const budgetRow = document.getElementById('budget-row');
+        const hourlyRow = document.getElementById('hourly-row');
+        const dailyRow = document.getElementById('daily-row');
+        const budgetInput = document.getElementById('budget_usd');
+        const hourlyRateInput = document.getElementById('hourly_rate');
+        const maxHoursInput = document.getElementById('max_hours');
+        const dailyRateInput = document.getElementById('daily_rate');
+        const maxDaysInput = document.getElementById('max_days');
 
-    // Handle job type selection
-    document.getElementById('job_type').addEventListener('change', function() {
-      const jobType = this.value;
-      const budgetRow = document.getElementById('budget-row');
-      const hourlyRow = document.getElementById('hourly-row');
-      const dailyRow = document.getElementById('daily-row');
-      const budgetInput = document.getElementById('budget_usd');
-      const hourlyRateInput = document.getElementById('hourly_rate');
-      const maxHoursInput = document.getElementById('max_hours');
-      const dailyRateInput = document.getElementById('daily_rate');
-      const maxDaysInput = document.getElementById('max_days');
+        // Reset all fields
+        budgetInput.value = '';
+        hourlyRateInput.value = '';
+        maxHoursInput.value = '';
+        dailyRateInput.value = '';
+        maxDaysInput.value = '';
 
-      // Reset all fields
-      budgetInput.value = '';
-      hourlyRateInput.value = '';
-      maxHoursInput.value = '';
-      dailyRateInput.value = '';
-      maxDaysInput.value = '';
+        if (jobType === 'hourly') {
+          budgetRow.style.display = 'none';
+          hourlyRow.style.display = 'grid';
+          dailyRow.style.display = 'none';
+          budgetInput.removeAttribute('required');
+          hourlyRateInput.setAttribute('required', 'required');
+          maxHoursInput.setAttribute('required', 'required');
+        } else if (jobType === 'daily') {
+          budgetRow.style.display = 'none';
+          hourlyRow.style.display = 'none';
+          dailyRow.style.display = 'grid';
+          budgetInput.removeAttribute('required');
+          dailyRateInput.setAttribute('required', 'required');
+          maxDaysInput.setAttribute('required', 'required');
+        } else {
+          budgetRow.style.display = 'grid';
+          hourlyRow.style.display = 'none';
+          dailyRow.style.display = 'none';
+          budgetInput.setAttribute('required', 'required');
+          hourlyRateInput.removeAttribute('required');
+          maxHoursInput.removeAttribute('required');
+          dailyRateInput.removeAttribute('required');
+          maxDaysInput.removeAttribute('required');
+        }
+      });
 
-      if (jobType === 'hourly') {
-        budgetRow.style.display = 'none';
-        hourlyRow.style.display = 'grid';
-        dailyRow.style.display = 'none';
-        budgetInput.removeAttribute('required');
-        hourlyRateInput.setAttribute('required', 'required');
-        maxHoursInput.setAttribute('required', 'required');
-      } else if (jobType === 'daily') {
-        budgetRow.style.display = 'none';
-        hourlyRow.style.display = 'none';
-        dailyRow.style.display = 'grid';
-        budgetInput.removeAttribute('required');
-        dailyRateInput.setAttribute('required', 'required');
-        maxDaysInput.setAttribute('required', 'required');
-      } else {
-        budgetRow.style.display = 'grid';
-        hourlyRow.style.display = 'none';
-        dailyRow.style.display = 'none';
-        budgetInput.setAttribute('required', 'required');
-        hourlyRateInput.removeAttribute('required');
-        maxHoursInput.removeAttribute('required');
-        dailyRateInput.removeAttribute('required');
-        maxDaysInput.removeAttribute('required');
-      }
-    });
+      // Initialize form visibility on page load
+      jobTypeSelect.dispatchEvent(new Event('change'));
+    }
 
-    document.getElementById('post-job-form').addEventListener('submit', async function(e) {
-      e.preventDefault();
-      
-      const hasSubscription = {{ 'true' if sub_info and sub_info.has_subscription else 'false' }};
-      const jobType = document.getElementById('job_type').value;
-      
-      if (!hasSubscription) {
-        // Store form data and show payment modal for PAYG
-        pendingJobData = {
-          title: document.getElementById('title').value,
-          description: document.getElementById('description').value,
-          category: document.getElementById('category').value,
-          job_type: jobType,
-          budget_usd: document.getElementById('budget_usd').value,
-          duration: document.getElementById('duration').value,
-          hourly_rate: document.getElementById('hourly_rate').value,
-          max_hours: document.getElementById('max_hours').value,
-          daily_rate: document.getElementById('daily_rate').value,
-          max_days: document.getElementById('max_days').value,
-          use_ai: document.querySelector('input[name="use_ai"]')?.checked ? 'true' : 'false',
-        };
-        document.getElementById('payg-modal').style.display = 'flex';
-      } else {
-        // Direct submit for subscription users
-        this.submit();
-      }
-    });
+    // Attach form submit handler
+    const postJobForm = document.getElementById('post-job-form');
+    if (postJobForm) {
+      postJobForm.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        const hasSubscription = {{ 'true' if sub_info and sub_info.has_subscription else 'false' }};
+        const jobType = document.getElementById('job_type').value;
+        
+        if (!hasSubscription) {
+          // Store form data and show payment modal for PAYG
+          pendingJobData = {
+            title: document.getElementById('title').value,
+            description: document.getElementById('description').value,
+            category: document.getElementById('category').value,
+            job_type: jobType,
+            budget_usd: document.getElementById('budget_usd').value,
+            duration: document.getElementById('duration').value,
+            hourly_rate: document.getElementById('hourly_rate').value,
+            max_hours: document.getElementById('max_hours').value,
+            daily_rate: document.getElementById('daily_rate').value,
+            max_days: document.getElementById('max_days').value,
+            use_ai: document.querySelector('input[name="use_ai"]')?.checked ? 'true' : 'false',
+          };
+          document.getElementById('payg-modal').style.display = 'flex';
+        } else {
+          // Direct submit for subscription users
+          this.submit();
+        }
+      });
+    }
 
     function closePaygModal() {
       document.getElementById('payg-modal').style.display = 'none';
