@@ -1015,6 +1015,38 @@ class MySQLStore:
             except Exception:
                 conn.rollback()
 
+            # ─ Add daily job support columns ──────────────────────────────────────
+            # These columns enable proper daily rate tracking and day verification
+            try:
+                cur.execute(f"ALTER TABLE {jobs} ADD COLUMN daily_rate DECIMAL(8,2) NULL DEFAULT NULL;")
+                conn.commit()
+            except Exception:
+                conn.rollback()
+            
+            try:
+                cur.execute(f"ALTER TABLE {jobs} ADD COLUMN max_days INT NULL DEFAULT NULL;")
+                conn.commit()
+            except Exception:
+                conn.rollback()
+            
+            try:
+                cur.execute(f"ALTER TABLE {p}work_submissions ADD COLUMN days_worked DECIMAL(10,2) NULL DEFAULT NULL;")
+                conn.commit()
+            except Exception:
+                conn.rollback()
+            
+            try:
+                cur.execute(f"ALTER TABLE {p}work_submissions ADD COLUMN days_verified_by_employer DECIMAL(10,2) NULL DEFAULT NULL;")
+                conn.commit()
+            except Exception:
+                conn.rollback()
+            
+            try:
+                cur.execute(f"ALTER TABLE {p}contracts ADD COLUMN days_logged DECIMAL(10,2) NULL DEFAULT NULL;")
+                conn.commit()
+            except Exception:
+                conn.rollback()
+
             # Add indexes that may be missing on existing deployments
             for idx_sql in [
                 f"ALTER TABLE {users} ADD INDEX idx_{p}users_role (role)",
@@ -1774,9 +1806,10 @@ def _pick_employer_name(store: MySQLStore) -> str:
 
 def _calculate_payment_amount(contract: dict, job: dict) -> tuple[float, str]:
     """
-    Calculate payment amount based on job type (hourly or fixed).
+    Calculate payment amount based on job type (hourly, daily, or fixed).
     Returns (amount_usd, description_text)
     For hourly: amount = hourly_rate × hours_logged
+    For daily: amount = daily_rate × days_logged
     For fixed: amount = contract price_usd
     """
     if job and job.get("job_type") == "hourly":
@@ -1785,6 +1818,13 @@ def _calculate_payment_amount(contract: dict, job: dict) -> tuple[float, str]:
         if hourly_rate and hours_logged:
             amount = float(hourly_rate) * float(hours_logged)
             return amount, f"Hourly ({hours_logged}h × ${hourly_rate}/h)"
+    
+    elif job and job.get("job_type") == "daily":
+        daily_rate = job.get("daily_rate", 0)
+        days_logged = contract.get("days_logged", 0)
+        if daily_rate and days_logged:
+            amount = float(daily_rate) * float(days_logged)
+            return amount, f"Daily ({days_logged}d × ${daily_rate}/d)"
     
     # Default to full contract price (fixed-price or fallback)
     amount = float(contract.get("price_usd") or 0)
@@ -4170,6 +4210,22 @@ def employer_post_job():
                 flash("Invalid hourly rate or max hours value.", "error")
                 return redirect(url_for("employer_post_job"))
         
+        # Daily job fields
+        daily_rate = None
+        max_days = None
+        if jtype == "daily":
+            try:
+                daily_rate = float(request.form.get("daily_rate", 0) or 0)
+                max_days = int(request.form.get("max_days", 0) or 0)
+                if daily_rate <= 0 or max_days <= 0:
+                    flash("Daily rate and max days must be positive values.", "error")
+                    return redirect(url_for("employer_post_job"))
+                # Override budget_usd with calculated amount (daily_rate * max_days)
+                budget = daily_rate * max_days
+            except (ValueError, TypeError):
+                flash("Invalid daily rate or max days value.", "error")
+                return redirect(url_for("employer_post_job"))
+        
         if not title or category not in JOB_CATEGORIES or jtype not in JOB_TYPES:
             flash("Please fill in all required fields correctly.", "error")
             return redirect(url_for("employer_post_job"))
@@ -4190,6 +4246,13 @@ def employer_post_job():
                 f"INSERT INTO {STORE.t('jobs')} (employer_id, title, description, category, job_type, budget_usd, duration, connects_required, hourly_rate, max_hours, is_robot, status) "
                 f"VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,0,'open')",
                 (uid, title, desc, category, jtype, budget, duration, conn_req, hourly_rate, max_hours),
+            )
+        # Insert job with daily fields if applicable
+        elif jtype == "daily":
+            job_id = STORE.execute(
+                f"INSERT INTO {STORE.t('jobs')} (employer_id, title, description, category, job_type, budget_usd, duration, connects_required, daily_rate, max_days, is_robot, status) "
+                f"VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,0,'open')",
+                (uid, title, desc, category, jtype, budget, duration, conn_req, daily_rate, max_days),
             )
         else:
             job_id = STORE.execute(
@@ -4854,7 +4917,7 @@ def contract_submit_work(contract_id):
     
     # Get job to check job_type and hourly fields
     job = STORE.query_one(
-        f"SELECT job_type, hourly_rate, max_hours FROM {STORE.t('jobs')} WHERE id=%s",
+        f"SELECT job_type, hourly_rate, max_hours, daily_rate, max_days FROM {STORE.t('jobs')} WHERE id=%s",
         (contract["job_id"],)
     )
     
@@ -4864,12 +4927,14 @@ def contract_submit_work(contract_id):
         deliverables = data.get("deliverables_links", [])
         submitted_message = data.get("submitted_message", "Work completed").strip()
         hours_worked = data.get("hours_worked")
+        days_worked = data.get("days_worked")
     else:
         deliverables = [{"title": t, "url": u} 
                        for t, u in zip(request.form.getlist("title[]"), request.form.getlist("url[]")) 
                        if u]
         submitted_message = request.form.get("submitted_message", "Work completed").strip()
         hours_worked = request.form.get("hours_worked")
+        days_worked = request.form.get("days_worked")
     
     # Validate hours for hourly jobs
     if job and job["job_type"] == "hourly":
@@ -4881,19 +4946,38 @@ def contract_submit_work(contract_id):
                 return jsonify({"error": f"Hours must be between 0 and {job.get('max_hours')}"}), 400
         except (ValueError, TypeError):
             return jsonify({"error": "Invalid hours worked value"}), 400
+        days_worked = None
+    # Validate days for daily jobs
+    elif job and job["job_type"] == "daily":
+        if not days_worked:
+            return jsonify({"error": "Days worked is required for daily contracts"}), 400
+        try:
+            days_worked = float(days_worked)
+            if days_worked <= 0 or days_worked > job.get("max_days", 999999):
+                return jsonify({"error": f"Days must be between 0 and {job.get('max_days')}"}), 400
+        except (ValueError, TypeError):
+            return jsonify({"error": "Invalid days worked value"}), 400
+        hours_worked = None
     else:
         hours_worked = None
+        days_worked = None
     
     deliverables = _normalize_deliverables(deliverables)
     if not deliverables:
         return jsonify({"error": "Must provide at least one deliverable link"}), 400
     
-    # Insert work submission with hours if applicable
+    # Insert work submission with hours/days if applicable
     if hours_worked:
         STORE.execute(
             f"INSERT INTO {STORE.t('work_submissions')} (contract_id, deliverables_links, submitted_message, hours_worked, submitted_at) "
             f"VALUES (%s,%s,%s,%s,NOW())",
             (contract_id, json.dumps(deliverables), submitted_message, hours_worked)
+        )
+    elif days_worked:
+        STORE.execute(
+            f"INSERT INTO {STORE.t('work_submissions')} (contract_id, deliverables_links, submitted_message, days_worked, submitted_at) "
+            f"VALUES (%s,%s,%s,%s,NOW())",
+            (contract_id, json.dumps(deliverables), submitted_message, days_worked)
         )
     else:
         STORE.execute(
@@ -4903,7 +4987,7 @@ def contract_submit_work(contract_id):
         )
     
     # Update contract status to under_review and set review window
-    # For hourly jobs, also store hours_logged
+    # For hourly/daily jobs, also store hours_logged/days_logged
     review_days = contract.get("review_days", 7)
     if hours_worked:
         STORE.execute(
@@ -4911,6 +4995,13 @@ def contract_submit_work(contract_id):
             f"review_window_starts=NOW(), review_deadline=DATE_ADD(NOW(), INTERVAL %s DAY), "
             f"hours_logged=%s WHERE id=%s",
             (review_days, hours_worked, contract_id)
+        )
+    elif days_worked:
+        STORE.execute(
+            f"UPDATE {STORE.t('contracts')} SET status='under_review', submitted_at=NOW(), "
+            f"review_window_starts=NOW(), review_deadline=DATE_ADD(NOW(), INTERVAL %s DAY), "
+            f"days_logged=%s WHERE id=%s",
+            (review_days, days_worked, contract_id)
         )
     else:
         STORE.execute(
@@ -4920,8 +5011,8 @@ def contract_submit_work(contract_id):
             (review_days, contract_id)
         )
     
-    log_contract_event(contract_id, "work_submitted", uid, {"links_count": len(deliverables), "hours": hours_worked})
-    audit_log(uid, "WORK_SUBMITTED", "contract", contract_id, details=f"Links: {len(deliverables)}, Hours: {hours_worked or 'N/A'}")
+    log_contract_event(contract_id, "work_submitted", uid, {"links_count": len(deliverables), "hours": hours_worked, "days": days_worked})
+    audit_log(uid, "WORK_SUBMITTED", "contract", contract_id, details=f"Links: {len(deliverables)}, Hours: {hours_worked or 'N/A'}, Days: {days_worked or 'N/A'}")
     
     push_notif(
         contract["employer_id"],
