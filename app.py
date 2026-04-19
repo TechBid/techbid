@@ -6829,7 +6829,8 @@ def handle_send_message(data):
         )
         sender_name = user.get('full_name', 'Unknown') if user else 'Unknown'
         
-        # Broadcast message to all users in the contract room
+        # Broadcast message only to OTHER users in the contract room
+        # (sender already has it from optimistic update)
         room = f"contract_{job_id}"
         emit('new_message', {
             'id': msg_id,
@@ -6837,7 +6838,7 @@ def handle_send_message(data):
             'sender_name': sender_name,
             'message': message_text,
             'created_at_label': datetime.now().strftime('%I:%M %p')
-        }, room=room)
+        }, room=room, skip_sid=request.sid)
         
         LOG.info(f"Message sent in contract {job_id}: {message_text[:50]}")
     
