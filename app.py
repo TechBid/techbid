@@ -656,6 +656,36 @@ class MySQLStore:
                 cur.execute(f"ALTER TABLE {jobs} ADD COLUMN ai_employer_name VARCHAR(255) NULL;")
             except Exception:
                 pass
+            # ── Email Notification Preferences ──────────────────────────────────────
+            try:
+                cur.execute(f"ALTER TABLE {users} ADD COLUMN email_job_notifications BOOLEAN DEFAULT TRUE;")
+            except Exception:
+                pass
+            try:
+                cur.execute(f"ALTER TABLE {users} ADD COLUMN email_notification_frequency ENUM('instant','daily','weekly') DEFAULT 'instant';")
+            except Exception:
+                pass
+            try:
+                cur.execute(f"ALTER TABLE {users} ADD COLUMN categories VARCHAR(255);")
+            except Exception:
+                pass
+            # ── Notifications Table - Update Structure ──────────────────────────────────────
+            # Recreate notifications table with new schema (or migrate existing)
+            try:
+                # Check if new columns exist
+                cur.execute(f"SHOW COLUMNS FROM {notifs} LIKE 'type'")
+                if not cur.fetchone():
+                    # Add new columns for enhanced notifications
+                    cur.execute(f"ALTER TABLE {notifs} ADD COLUMN type VARCHAR(32) NOT NULL DEFAULT 'notification';")
+                    cur.execute(f"ALTER TABLE {notifs} ADD COLUMN title VARCHAR(255);")
+                    cur.execute(f"ALTER TABLE {notifs} ADD COLUMN job_id BIGINT;")
+                    cur.execute(f"ALTER TABLE {notifs} ADD COLUMN match_score INT DEFAULT 0;")
+                    # Create indexes
+                    cur.execute(f"ALTER TABLE {notifs} ADD INDEX idx_{p}notif_user_read (user_id, is_read);")
+                    cur.execute(f"ALTER TABLE {notifs} ADD INDEX idx_{p}notif_type (type);")
+                    cur.execute(f"ALTER TABLE {notifs} ADD INDEX idx_{p}notif_created (created_at);")
+            except Exception as e:
+                LOG.debug(f"Notification table update: {e}")
             # Seed initial simulated applicant names if table is empty.
             cur.execute(f"SELECT COUNT(*) FROM {rnames}")
             existing_names = int(cur.fetchone()[0] or 0)
@@ -1543,6 +1573,20 @@ def _generate_ai_jobs(store: MySQLStore) -> int:
                     (job_id, robot_name, winner_conn, winner_completed_jobs, winner_success_rate, winner_style, awarded_at),
                 )
                 
+                # Notify matching workers asynchronously
+                budget_display = f"${budget:,.2f}" if budget else "Negotiable"
+                posted_time = "Just now"
+                try:
+                    # Run in background to not block AI generation
+                    notify_thread = Thread(
+                        target=_notify_matching_workers,
+                        args=(job_id, title, description, category, budget_display, posted_time),
+                        daemon=True
+                    )
+                    notify_thread.start()
+                except Exception as notify_err:
+                    LOG.warning(f"Failed to start notification thread for AI job: {notify_err}")
+                
                 count += 1
                 LOG.info("✓ Created AI job #%d: '%s' (ID: %d)", count, title[:50], job_id)
                 
@@ -1559,6 +1603,262 @@ def _generate_ai_jobs(store: MySQLStore) -> int:
     except Exception as exc:
         LOG.error("✗ AI job generation failed: %s", exc)
         return 0
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Skill Matching & Notification Functions
+
+import re
+import time
+from threading import Thread
+from queue import Queue
+
+# Email notification queue
+_email_queue = Queue()
+_MATCH_THRESHOLD = 60  # 60% minimum match score to notify
+
+def _extract_keywords_from_text(text: str) -> list:
+    """Extract keywords from job title/description."""
+    if not text:
+        return []
+    
+    # Convert to lowercase and remove special chars
+    text = text.lower()
+    # Remove punctuation and split
+    words = re.findall(r'\b[a-z0-9]+\b', text)
+    
+    # Filter common words
+    stopwords = {
+        'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for',
+        'of', 'with', 'from', 'is', 'are', 'be', 'was', 'were', 'have', 'has',
+        'do', 'does', 'did', 'will', 'would', 'could', 'should', 'may', 'might',
+        'must', 'can', 'you', 'we', 'they', 'it', 'that', 'this', 'as', 'if'
+    }
+    
+    # Return unique keywords (len > 2 and not stopwords)
+    keywords = set(w for w in words if len(w) > 2 and w not in stopwords)
+    return list(keywords)
+
+def _calculate_match_score(job_title: str, job_desc: str, job_category: str,
+                          user_skills: str, user_categories: str) -> int:
+    """Calculate match score between job and worker skills.
+    
+    Returns: 0-100 match percentage
+    """
+    try:
+        if not user_skills or not job_title:
+            return 0
+        
+        # Level 1: Category matching (50 points if category matches)
+        score = 0
+        if user_categories and job_category:
+            user_cats = [c.strip().lower() for c in user_categories.split(',')]
+            job_cat = job_category.strip().lower()
+            if job_cat in user_cats:
+                score += 50
+        
+        # Level 2: Keyword extraction and matching
+        user_keywords = set(_extract_keywords_from_text(user_skills.lower()))
+        job_keywords = set(_extract_keywords_from_text(job_title + ' ' + (job_desc or '')))
+        
+        if job_keywords and user_keywords:
+            # Calculate keyword overlap percentage
+            overlap = len(user_keywords & job_keywords)
+            total = len(job_keywords)
+            keyword_match = (overlap / total * 100) if total > 0 else 0
+            
+            # Add keyword score (capped at 50 points if not already scored from category)
+            if score == 0:
+                score = int(keyword_match * 0.5)
+            else:
+                score += int(keyword_match * 0.25)
+        
+        return min(score, 100)
+    
+    except Exception as e:
+        LOG.error(f"Match score calculation failed: {e}")
+        return 0
+
+def _create_notification(user_id: int, notif_type: str, title: str, 
+                        message: str, job_id: int = None, match_score: int = 0) -> bool:
+    """Create a notification record."""
+    try:
+        p = STORE.prefix
+        STORE.execute(
+            f"""INSERT INTO {p}notifications 
+               (user_id, type, title, message, job_id, match_score, is_read, created_at)
+               VALUES (%s, %s, %s, %s, %s, %s, FALSE, NOW())""",
+            (user_id, notif_type, title, message, job_id, match_score)
+        )
+        LOG.debug(f"✓ Notification created for user {user_id}: {title}")
+        return True
+    except Exception as e:
+        LOG.error(f"✗ Failed to create notification: {e}")
+        return False
+
+def _send_email_notification(user_id: int, user_email: str, job_title: str, 
+                           job_category: str, budget: str, job_link: str, 
+                           match_score: int, posted_time: str):
+    """Queue email notification to be sent asynchronously."""
+    try:
+        email_data = {
+            'to': user_email,
+            'subject': f'New Job Match: {job_title}',
+            'job_title': job_title,
+            'job_category': job_category,
+            'budget': budget,
+            'job_link': job_link,
+            'match_score': match_score,
+            'posted_time': posted_time
+        }
+        _email_queue.put(email_data)
+        LOG.debug(f"✓ Email queued for {user_email}")
+    except Exception as e:
+        LOG.error(f"✗ Failed to queue email: {e}")
+
+def _notify_matching_workers(job_id: int, job_title: str, job_desc: str,
+                            job_category: str, budget: str, posted_time: str):
+    """Find workers matching job skills and notify them.
+    
+    This runs asynchronously in background thread to not block job creation.
+    """
+    try:
+        p = STORE.prefix
+        
+        # Get all workers with email notifications enabled
+        workers = STORE.query_all(
+            f"""SELECT id, email, skills, categories, email_job_notifications,
+                     email_notification_frequency
+                FROM {p}users 
+                WHERE role = 'worker' AND email_job_notifications = TRUE
+                LIMIT 1000"""
+        )
+        
+        if not workers:
+            LOG.debug("No workers to notify for new job")
+            return
+        
+        notified_count = 0
+        for worker in workers:
+            try:
+                worker_id = worker.get('id')
+                worker_email = worker.get('email')
+                worker_skills = worker.get('skills', '')
+                worker_categories = worker.get('categories', '')
+                freq = worker.get('email_notification_frequency', 'instant')
+                
+                # Calculate match score
+                match_score = _calculate_match_score(
+                    job_title=job_title,
+                    job_desc=job_desc or '',
+                    job_category=job_category,
+                    user_skills=worker_skills,
+                    user_categories=worker_categories
+                )
+                
+                # Only notify if score meets threshold
+                if match_score >= _MATCH_THRESHOLD:
+                    # Create notification
+                    _create_notification(
+                        user_id=worker_id,
+                        notif_type='NEW_JOB_MATCH',
+                        title=f'New job: {job_title}',
+                        message=f'A new {job_category} job matches your skills ({match_score}% match)',
+                        job_id=job_id,
+                        match_score=match_score
+                    )
+                    
+                    # Send email if frequency is 'instant'
+                    if freq == 'instant' and worker_email:
+                        _send_email_notification(
+                            user_id=worker_id,
+                            user_email=worker_email,
+                            job_title=job_title,
+                            job_category=job_category,
+                            budget=budget,
+                            job_link=f"/worker/jobs/{job_id}",
+                            match_score=match_score,
+                            posted_time=posted_time
+                        )
+                    
+                    notified_count += 1
+            
+            except Exception as w_err:
+                LOG.warning(f"Failed to notify worker {worker.get('id')}: {w_err}")
+                continue
+        
+        LOG.info(f"✓ Notified {notified_count} workers for job {job_id}")
+    
+    except Exception as e:
+        LOG.error(f"✗ Worker notification batch failed: {e}")
+
+def _email_worker_thread():
+    """Background thread to send queued emails."""
+    while True:
+        try:
+            if _email_queue.empty():
+                time.sleep(2)
+                continue
+            
+            email_data = _email_queue.get(timeout=5)
+            
+            try:
+                # Build HTML email
+                html_body = f"""
+                <html><body style="font-family: Arial, sans-serif;">
+                    <h2>✨ New Job Match Found!</h2>
+                    <p>Hi there,</p>
+                    <p>A new job was posted that matches your skills!</p>
+                    
+                    <div style="background: #f5f5f5; padding: 15px; border-radius: 5px;">
+                        <p><strong>📋 Job:</strong> {email_data.get('job_title')}</p>
+                        <p><strong>🏢 Category:</strong> {email_data.get('job_category')}</p>
+                        <p><strong>💰 Budget:</strong> {email_data.get('budget')}</p>
+                        <p><strong>⏰ Posted:</strong> {email_data.get('posted_time')}</p>
+                        <p><strong>✅ Your Match Score:</strong> {email_data.get('match_score')}%</p>
+                    </div>
+                    
+                    <p><a href="{email_data.get('job_link')}" 
+                          style="background: #007bff; color: white; padding: 10px 20px; 
+                                 text-decoration: none; border-radius: 5px;">
+                        Apply Now
+                    </a></p>
+                    
+                    <p>---</p>
+                    <p style="font-size: 12px; color: #666;">
+                        You're receiving this because you enabled job notifications.
+                        <a href="/worker/settings">Manage preferences</a>
+                    </p>
+                </body></html>
+                """
+                
+                # Send email
+                import smtplib
+                from email.mime.text import MIMEText
+                from email.mime.multipart import MIMEMultipart
+                
+                msg = MIMEMultipart('alternative')
+                msg['Subject'] = email_data.get('subject')
+                msg['From'] = _env('SMTP_FROM_EMAIL', 'noreply@freelancing.com')
+                msg['To'] = email_data.get('to')
+                
+                msg.attach(MIMEText(html_body, 'html'))
+                
+                with smtplib.SMTP(_env('SMTP_HOST'), _env_int('SMTP_PORT', 587)) as server:
+                    server.starttls()
+                    server.login(_env('SMTP_USER'), _env('SMTP_PASSWORD'))
+                    server.send_message(msg)
+                
+                LOG.debug(f"✓ Email sent to {email_data.get('to')}")
+            
+            except Exception as send_err:
+                LOG.error(f"✗ Email send failed: {send_err}")
+            
+            _email_queue.task_done()
+        
+        except Exception as e:
+            LOG.warning(f"Email worker error: {e}")
+            time.sleep(2)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -1587,6 +1887,16 @@ AI_LAST_MANUAL_TRIGGER_AT: datetime | None = None
 AI_TRIGGER_LOCK = threading.Lock()
 AI_MIN_INTERVAL_SECONDS = 60   # Require >= 1 minute between manual trigger requests
 
+# ── Email Worker Thread (for async email notifications) ──────────────────────────
+_email_worker_running = False
+def _start_email_worker():
+    """Start background email worker thread."""
+    global _email_worker_running
+    if not _email_worker_running:
+        _email_worker_running = True
+        email_thread = Thread(target=_email_worker_thread, daemon=True)
+        email_thread.start()
+        LOG.info("✓ Email notification worker started")
 
 # ── Before request initialization ──────────────────────────────────────────────
 @app.before_request
@@ -1600,6 +1910,9 @@ def before_request():
 # ── Request lifecycle — one connection per request ──────────────────────────────
 @app.before_request
 def _before():
+    # Start email worker on first request
+    _start_email_worker()
+    
     if session.get("user_id"):
         STORE.open_request_conn()
 
@@ -3736,6 +4049,164 @@ def worker_connects_checkout():
         return jsonify({"error": data.get("message", "PesaPal order failed")}), 400
 
     return jsonify({"error": "Unknown provider"}), 400
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Notification Endpoints
+
+@app.route("/api/worker/notifications", methods=["GET"])
+@worker_required
+def get_notifications():
+    """Get user's unread notifications (JSON API)."""
+    uid = session.get("user_id")
+    p = STORE.prefix
+    
+    try:
+        # Get unread notifications (last 20)
+        notifs = STORE.query_all(
+            f"""SELECT id, type, title, message, job_id, match_score, is_read, created_at
+                FROM {p}notifications
+                WHERE user_id = %s
+                ORDER BY created_at DESC
+                LIMIT 20""",
+            (uid,)
+        )
+        
+        unread_count = STORE.query_one(
+            f"SELECT COUNT(*) as cnt FROM {p}notifications WHERE user_id=%s AND is_read=0",
+            (uid,)
+        )["cnt"]
+        
+        return jsonify({
+            "notifications": notifs,
+            "unread_count": unread_count
+        })
+    except Exception as e:
+        LOG.error(f"Failed to fetch notifications: {e}")
+        return jsonify({"error": "Failed to fetch notifications"}), 500
+
+@app.route("/api/worker/notifications/<int:notif_id>/read", methods=["POST"])
+@worker_required
+def mark_notification_read(notif_id):
+    """Mark a notification as read."""
+    uid = session.get("user_id")
+    p = STORE.prefix
+    
+    try:
+        STORE.execute(
+            f"UPDATE {p}notifications SET is_read=1 WHERE id=%s AND user_id=%s",
+            (notif_id, uid)
+        )
+        return jsonify({"status": "ok"})
+    except Exception as e:
+        LOG.error(f"Failed to mark notification as read: {e}")
+        return jsonify({"error": "Failed to update notification"}), 500
+
+@app.route("/api/worker/notifications/clear-all", methods=["POST"])
+@worker_required
+def clear_all_notifications():
+    """Mark all notifications as read."""
+    uid = session.get("user_id")
+    p = STORE.prefix
+    
+    try:
+        STORE.execute(
+            f"UPDATE {p}notifications SET is_read=1 WHERE user_id=%s",
+            (uid,)
+        )
+        return jsonify({"status": "ok"})
+    except Exception as e:
+        LOG.error(f"Failed to clear notifications: {e}")
+        return jsonify({"error": "Failed to clear notifications"}), 500
+
+@app.route("/worker/notifications", methods=["GET", "POST"])
+@worker_required
+def worker_notifications():
+    """Display worker's notifications page."""
+    uid = session.get("user_id")
+    p = STORE.prefix
+    
+    if request.method == "POST":
+        action = request.form.get("action")
+        if action == "mark_all_read":
+            if verify_csrf():
+                STORE.execute(
+                    f"UPDATE {p}notifications SET is_read=1 WHERE user_id=%s",
+                    (uid,)
+                )
+                flash("All notifications marked as read.", "info")
+        return redirect(url_for("worker_notifications"))
+    
+    # Get notifications
+    notifs = STORE.query_all(
+        f"""SELECT id, type, title, message, job_id, match_score, is_read, created_at
+            FROM {p}notifications
+            WHERE user_id = %s
+            ORDER BY created_at DESC
+            LIMIT 50""",
+        (uid,)
+    )
+    
+    unread_count = STORE.query_one(
+        f"SELECT COUNT(*) as cnt FROM {p}notifications WHERE user_id=%s AND is_read=0",
+        (uid,)
+    )["cnt"]
+    
+    return render_template(
+        "worker/notifications.html",
+        notifications=notifs,
+        unread_count=unread_count
+    )
+
+@app.route("/worker/settings", methods=["GET", "POST"])
+@worker_required
+def worker_settings():
+    """Worker notification and email preferences."""
+    uid = session.get("user_id")
+    p = STORE.prefix
+    
+    if request.method == "POST":
+        if not verify_csrf():
+            flash("Invalid request.", "error")
+            return redirect(url_for("worker_settings"))
+        
+        # Update email preferences
+        email_notifs = request.form.get("email_job_notifications") == "true"
+        email_freq = request.form.get("email_notification_frequency", "instant")
+        categories = request.form.get("categories", "").strip()
+        
+        if email_freq not in ['instant', 'daily', 'weekly']:
+            email_freq = 'instant'
+        
+        try:
+            STORE.execute(
+                f"""UPDATE {p}users 
+                   SET email_job_notifications=%s, 
+                       email_notification_frequency=%s,
+                       categories=%s
+                   WHERE id=%s""",
+                (email_notifs, email_freq, categories, uid)
+            )
+            audit_log(uid, f"Updated notification settings: freq={email_freq}, enabled={email_notifs}")
+            flash("Notification settings updated.", "success")
+        except Exception as e:
+            LOG.error(f"Failed to update settings: {e}")
+            flash("Failed to update settings.", "error")
+        
+        return redirect(url_for("worker_settings"))
+    
+    # Get current settings
+    user = STORE.query_one(
+        f"""SELECT email_job_notifications, email_notification_frequency, categories, skills
+            FROM {p}users WHERE id=%s""",
+        (uid,)
+    )
+    
+    return render_template(
+        "worker/settings.html",
+        user=user,
+        categories=JOB_CATEGORIES
+    )
 
 
 @app.route("/worker/profile")

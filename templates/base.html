@@ -124,15 +124,31 @@
     <div class="mobile-drawer-content">
       {% if current_user_id %}
         {% if current_role == 'worker' %}
-          <a href="{{ url_for('worker_dashboard') }}" class="mobile-drawer-link {% if request.endpoint == 'worker_dashboard' %}active{% endif %}">Dashboard</a>
-          <a href="{{ url_for('worker_jobs') }}" class="mobile-drawer-link {% if request.endpoint in ['worker_jobs','worker_job_detail'] %}active{% endif %}">Find Work</a>
-          <a href="{{ url_for('worker_profile') }}" class="mobile-drawer-link {% if request.endpoint == 'worker_profile' %}active{% endif %}">My Profile</a>
-          <a href="{{ url_for('worker_buy_connects') }}" class="mobile-drawer-link">Buy Connects</a>
+          <a href="{{ url_for('worker_dashboard') }}" class="mobile-drawer-link {% if request.endpoint == 'worker_dashboard' %}active{% endif %}}">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+            Dashboard</a>
+          <a href="{{ url_for('worker_jobs') }}" class="mobile-drawer-link {% if request.endpoint in ['worker_jobs','worker_job_detail'] %}active{% endif %}}">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg>
+            Find Work</a>
+          <a href="{{ url_for('worker_profile') }}" class="mobile-drawer-link {% if request.endpoint == 'worker_profile' %}active{% endif %}}">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            My Profile</a>
+          <a href="{{ url_for('worker_buy_connects') }}" class="mobile-drawer-link">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+            Buy Connects</a>
         {% elif current_role == 'employer' %}
-          <a href="{{ url_for('employer_dashboard') }}" class="mobile-drawer-link {% if request.endpoint == 'employer_dashboard' %}active{% endif %}">Dashboard</a>
-          <a href="{{ url_for('employer_post_job') }}" class="mobile-drawer-link {% if request.endpoint == 'employer_post_job' %}active{% endif %}">Post a Job</a>
-          <a href="{{ url_for('employer_payments') }}" class="mobile-drawer-link {% if request.endpoint == 'employer_payments' %}active{% endif %}">Payments</a>
-          <a href="{{ url_for('employer_pricing') }}" class="mobile-drawer-link {% if request.endpoint == 'employer_pricing' %}active{% endif %}">Pricing</a>
+          <a href="{{ url_for('employer_dashboard') }}" class="mobile-drawer-link {% if request.endpoint == 'employer_dashboard' %}active{% endif %}}">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+            Dashboard</a>
+          <a href="{{ url_for('employer_post_job') }}" class="mobile-drawer-link {% if request.endpoint == 'employer_post_job' %}active{% endif %}}">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+            Post a Job</a>
+          <a href="{{ url_for('employer_payments') }}" class="mobile-drawer-link {% if request.endpoint == 'employer_payments' %}active{% endif %}}">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 11a4 4 0 1 1-8 0"/></svg>
+            Payments</a>
+          <a href="{{ url_for('employer_pricing') }}" class="mobile-drawer-link {% if request.endpoint == 'employer_pricing' %}active{% endif %}}">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            Pricing</a>
         {% endif %}
         <div class="mobile-drawer-divider"></div>
         <a href="{{ url_for('help_support') }}" class="mobile-drawer-link">Help & Support</a>

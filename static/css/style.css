@@ -171,6 +171,7 @@ p  { color: var(--text-muted); }
 .mobile-drawer-link:hover,
 .mobile-drawer-link:active { background: #f3f3f3; color: var(--text); }
 .mobile-drawer-link.active { background: #ebf8e6; color: var(--green); font-weight: 600; }
+.mobile-drawer-link svg { flex-shrink: 0; }
 .mobile-drawer-divider { height: 1px; background: var(--border); margin: 8px 0; }
 .mobile-drawer-button { padding: 10px 14px; margin: 4px 0; width: 100%; }
 .nav-links a {
