@@ -105,7 +105,7 @@
     </script>
 
     {% if (not job.awarded_at or now < job.awarded_at) %}
-    <div style="margin-top:20px;padding:12px;background:var(--surface);border-radius:var(--radius);border-left:4px solid var(--primary);">
+    <div class="card-container">
        <strong class="text-sm" style="color:var(--text);">Activity on this job</strong><br>
        {% if job.simulated_invites and job.simulated_invites > 0 %}
        <span class="text-sm text-muted">Invites sent: <strong>{{ job.simulated_invites }}</strong></span><br>
@@ -158,7 +158,7 @@
     <hr class="divider" style="margin-top:32px;">
     
     <!-- Escrow Funding Requirement Message -->
-    <div style="padding:12px;background:var(--surface);border-radius:var(--radius);border-left:4px solid var(--primary);margin-bottom:20px;">
+    <div class="card-container" style="border-left:4px solid var(--danger);">
       <div style="display:flex;align-items:flex-start;gap:8px;">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:2px;color:var(--danger);">
           <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3.05h16.94a2 2 0 0 0 1.71-3.05L13.71 3.86a2 2 0 0 0-3.42 0z"></path>

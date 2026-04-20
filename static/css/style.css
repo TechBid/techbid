@@ -240,6 +240,13 @@ p  { color: var(--text-muted); }
 .card-title { font-size: 1rem; font-weight: 600; margin-bottom: 4px; }
 .card:not(:first-child) { margin-top: 16px; }
 
+/* Card containers with full styling for important sections */
+.card-container {
+  background: var(--white); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 20px;
+  margin-bottom: 20px;
+}
+
 /* ── Job Cards ──────────────────────────────────────────────────────────────── */
 .job-card {
   background: transparent; border: none; border-bottom: 1px solid var(--border);
@@ -572,6 +579,7 @@ tr:hover td { background: #fafafa; }
   
   /* Cards */
   .card { padding: 12px 0; }
+  .card-container { padding: 16px; }
   .job-card { padding: 12px 0; }
   .job-card-header { flex-direction: column; gap: 8px; }
   .job-card-header > div:last-child { width: 100%; text-align: left; }
@@ -688,6 +696,7 @@ tr:hover td { background: #fafafa; }
   
   /* Cards */
   .card { padding: 12px 0; }
+  .card-container { padding: 16px; }
   .job-card { padding: 12px 0; }
   .job-card-header { flex-direction: column; gap: 10px; }
   
