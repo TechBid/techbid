@@ -241,12 +241,12 @@ p  { color: var(--text-muted); }
 
 /* ── Job Cards ──────────────────────────────────────────────────────────────── */
 .job-card {
-  background: var(--white); border: 1px solid var(--border);
-  border-radius: var(--radius); padding: 20px 24px;
-  transition: box-shadow .15s;
+  background: transparent; border: none; border-bottom: 1px solid var(--border);
+  border-radius: 0; padding: 16px 0;
+  transition: background .15s;
 }
-.job-card:hover { box-shadow: var(--shadow-md); }
-.job-card + .job-card { margin-top: 12px; }
+.job-card:hover { background: rgba(0, 0, 0, 0.02); }
+.job-card + .job-card { margin-top: 0; }
 .job-card-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
 .job-title { font-size: 1rem; font-weight: 600; color: var(--text); word-break: break-word; }
 .job-title:hover { color: var(--blue); }

@@ -53,28 +53,23 @@
                 {{ job.job_type | capitalize }}
               </span>
               <span>${{ "%.0f"|format(job.budget_usd) }}</span>
-              <span>{{ job.connects_required }} connects to apply</span>
-              {% if job.duration %}<span>{{ job.duration }}</span>{% endif %}
-              {% if job.created_at %}<span>Posted {{ job.created_at | time_ago }}</span>{% endif %}
+              <span>{{ job.connects_required }} connects</span>
+              {% if job.created_at %}<span>{{ job.created_at | time_ago }}</span>{% endif %}
             </div>
-            <p class="mt-1 text-sm text-muted" style="display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">
-              {{ job.description[:220] }}
-            </p>
           </div>
-          <div style="text-align:right;flex-shrink:0;">
+          <div style="text-align:right;flex-shrink:0;min-width:100px;">
             {% if job.id in applied_ids %}
-            <span class="btn btn-sm" style="background:#f0f0f0;color:var(--text-muted);cursor:default;">Applied</span>
+            <span class="btn btn-sm" style="background:#f0f0f0;color:var(--text-muted);cursor:default;width:100%;">Applied</span>
             {% else %}
-            <a href="{{ url_for('worker_job_detail', job_id=job.id) }}" class="btn btn-primary btn-sm">Apply</a>
+            <a href="{{ url_for('worker_job_detail', job_id=job.id) }}" class="btn btn-primary btn-sm" style="width:100%;">Apply</a>
             {% endif %}
-            <div class="text-sm text-muted mt-1">
-              <span class="job-badge badge-real">Verified Client</span>
-            </div>
           </div>
         </div>
-
+        <p class="mt-1 text-sm text-muted" style="display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">
+          {{ job.description[:220] }}
+        </p>
         {% if job.is_robot %}
-        <div class="text-sm text-muted mt-2 d-flex gap-3" style="display:flex; gap:16px; align-items:center;">
+        <div class="text-sm text-muted mt-2" style="display:flex; gap:24px;">
           <span><strong>Proposals:</strong> {{ job.display_applicants }}</span>
           {% if job.simulated_invites > 0 %}<span><strong>Invites:</strong> {{ job.simulated_invites }}</span>{% endif %}
           <span><strong>Location:</strong> Global</span>
