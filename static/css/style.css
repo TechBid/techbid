@@ -234,11 +234,11 @@ p  { color: var(--text-muted); }
 
 /* ── Cards ──────────────────────────────────────────────────────────────────── */
 .card {
-  background: var(--white); border: 1px solid var(--border);
-  border-radius: var(--radius); padding: 20px;
+  background: transparent; border: none; border-bottom: 1px solid var(--border);
+  border-radius: 0; padding: 16px 0;
 }
 .card-title { font-size: 1rem; font-weight: 600; margin-bottom: 4px; }
-.card + .card { margin-top: 16px; }
+.card:not(:first-child) { margin-top: 16px; }
 
 /* ── Job Cards ──────────────────────────────────────────────────────────────── */
 .job-card {
@@ -247,7 +247,7 @@ p  { color: var(--text-muted); }
   transition: background .15s;
 }
 .job-card:hover { background: rgba(0, 0, 0, 0.02); }
-.job-card + .job-card { margin-top: 0; }
+.job-card:not(:first-child) { margin-top: 16px; }
 .job-card-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
 .job-title { font-size: 1rem; font-weight: 600; color: var(--text); word-break: break-word; }
 .job-title:hover { color: var(--blue); }
@@ -571,8 +571,8 @@ tr:hover td { background: #fafafa; }
   .btn-sm { padding: 8px 12px; font-size: .75rem; }
   
   /* Cards */
-  .card { padding: 14px; }
-  .job-card { padding: 14px; }
+  .card { padding: 12px 0; }
+  .job-card { padding: 12px 0; }
   .job-card-header { flex-direction: column; gap: 8px; }
   .job-card-header > div:last-child { width: 100%; text-align: left; }
   
@@ -687,8 +687,8 @@ tr:hover td { background: #fafafa; }
   .btn { padding: 8px 16px; font-size: .85rem; }
   
   /* Cards */
-  .card { padding: 16px; }
-  .job-card { padding: 16px; }
+  .card { padding: 12px 0; }
+  .job-card { padding: 12px 0; }
   .job-card-header { flex-direction: column; gap: 10px; }
   
   /* Forms */
