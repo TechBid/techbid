@@ -25,9 +25,10 @@
         </select>
       </div>
       <div class="form-group">
-        <label class="form-label" for="job_type">Job type</label>
-        <input type="text" class="form-input" value="{{ job.job_type | capitalize }}" disabled style="background:var(--bg-secondary);color:var(--text-muted);">
-        <p style="font-size:0.85rem;color:var(--text-muted);margin-top:4px;">Job type cannot be changed</p>
+        <label class="form-label" for="job_type">Job type *</label>
+        <select id="job_type" name="job_type" class="form-select" required>
+          {% for t in job_types %}<option value="{{ t }}" {% if t == job.job_type %}selected{% endif %}>{{ t | capitalize }}</option>{% endfor %}
+        </select>
       </div>
     </div>
     
@@ -80,25 +81,44 @@
   </form>
 
   <script>
-    // For edit form, job type is fixed so we don't need change handlers
-    // Just ensure correct field visibility on page load
-    const jobType = '{{ job.job_type }}';
-    const budgetRow = document.getElementById('budget-row');
-    const hourlyRow = document.getElementById('hourly-row');
-    const dailyRow = document.getElementById('daily-row');
+    const jobTypeSelect = document.getElementById('job_type');
+    if (jobTypeSelect) {
+      jobTypeSelect.addEventListener('change', function() {
+        const jobType = this.value;
+        const budgetRow = document.getElementById('budget-row');
+        const hourlyRow = document.getElementById('hourly-row');
+        const dailyRow = document.getElementById('daily-row');
+        const budgetInput = document.getElementById('budget_usd');
+        const hourlyRateInput = document.getElementById('hourly_rate');
+        const maxHoursInput = document.getElementById('max_hours');
+        const dailyRateInput = document.getElementById('daily_rate');
+        const maxDaysInput = document.getElementById('max_days');
 
-    if (jobType === 'hourly') {
-      budgetRow.style.display = 'none';
-      hourlyRow.style.display = 'grid';
-      dailyRow.style.display = 'none';
-    } else if (jobType === 'daily') {
-      budgetRow.style.display = 'none';
-      hourlyRow.style.display = 'none';
-      dailyRow.style.display = 'grid';
-    } else {
-      budgetRow.style.display = 'grid';
-      hourlyRow.style.display = 'none';
-      dailyRow.style.display = 'none';
+        if (jobType === 'hourly') {
+          budgetRow.style.display = 'none';
+          hourlyRow.style.display = 'grid';
+          dailyRow.style.display = 'none';
+          budgetInput.removeAttribute('required');
+          hourlyRateInput.setAttribute('required', 'required');
+          maxHoursInput.setAttribute('required', 'required');
+        } else if (jobType === 'daily') {
+          budgetRow.style.display = 'none';
+          hourlyRow.style.display = 'none';
+          dailyRow.style.display = 'grid';
+          budgetInput.removeAttribute('required');
+          dailyRateInput.setAttribute('required', 'required');
+          maxDaysInput.setAttribute('required', 'required');
+        } else {
+          budgetRow.style.display = 'grid';
+          hourlyRow.style.display = 'none';
+          dailyRow.style.display = 'none';
+          budgetInput.setAttribute('required', 'required');
+          hourlyRateInput.removeAttribute('required');
+          maxHoursInput.removeAttribute('required');
+          dailyRateInput.removeAttribute('required');
+          maxDaysInput.removeAttribute('required');
+        }
+      });
     }
   </script>
 </div>

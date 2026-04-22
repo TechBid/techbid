@@ -4869,18 +4869,21 @@ def employer_edit_job(job_id):
         title    = request.form.get("title", "").strip()[:255]
         desc     = request.form.get("description", "").strip()[:3000]
         category = request.form.get("category", "")
+        jtype    = request.form.get("job_type", job["job_type"])
         duration = request.form.get("duration", "").strip()[:80]
+        budget   = float(request.form.get("budget_usd", 0) or 0)
         
         # Hourly job fields
         hourly_rate = None
         max_hours = None
-        if job["job_type"] == "hourly":
+        if jtype == "hourly":
             try:
                 hourly_rate = float(request.form.get("hourly_rate", 0) or 0)
                 max_hours = int(request.form.get("max_hours", 0) or 0)
                 if hourly_rate <= 0 or max_hours <= 0:
                     flash("Hourly rate and max hours must be positive values.", "error")
                     return redirect(url_for("employer_edit_job", job_id=job_id))
+                budget = hourly_rate * max_hours
             except (ValueError, TypeError):
                 flash("Invalid hourly rate or max hours value.", "error")
                 return redirect(url_for("employer_edit_job", job_id=job_id))
@@ -4888,36 +4891,40 @@ def employer_edit_job(job_id):
         # Daily job fields
         daily_rate = None
         max_days = None
-        if job["job_type"] == "daily":
+        if jtype == "daily":
             try:
                 daily_rate = float(request.form.get("daily_rate", 0) or 0)
                 max_days = int(request.form.get("max_days", 0) or 0)
                 if daily_rate <= 0 or max_days <= 0:
                     flash("Daily rate and max days must be positive values.", "error")
                     return redirect(url_for("employer_edit_job", job_id=job_id))
+                budget = daily_rate * max_days
             except (ValueError, TypeError):
                 flash("Invalid daily rate or max days value.", "error")
                 return redirect(url_for("employer_edit_job", job_id=job_id))
         
-        if not title or category not in JOB_CATEGORIES:
+        if not title or category not in JOB_CATEGORIES or jtype not in JOB_TYPES:
             flash("Please fill in all required fields correctly.", "error")
             return redirect(url_for("employer_edit_job", job_id=job_id))
         
+        # Calculate new connects_required based on updated budget
+        conn_req = _calculate_connects_required(budget)
+        
         # Update job
-        if job["job_type"] == "hourly":
+        if jtype == "hourly":
             STORE.execute(
-                f"UPDATE {STORE.t('jobs')} SET title=%s, description=%s, category=%s, duration=%s, hourly_rate=%s, max_hours=%s WHERE id=%s",
-                (title, desc, category, duration, hourly_rate, max_hours, job_id),
+                f"UPDATE {STORE.t('jobs')} SET title=%s, description=%s, category=%s, job_type=%s, duration=%s, budget_usd=%s, connects_required=%s, hourly_rate=%s, max_hours=%s WHERE id=%s",
+                (title, desc, category, jtype, duration, budget, conn_req, hourly_rate, max_hours, job_id),
             )
-        elif job["job_type"] == "daily":
+        elif jtype == "daily":
             STORE.execute(
-                f"UPDATE {STORE.t('jobs')} SET title=%s, description=%s, category=%s, duration=%s, daily_rate=%s, max_days=%s WHERE id=%s",
-                (title, desc, category, duration, daily_rate, max_days, job_id),
+                f"UPDATE {STORE.t('jobs')} SET title=%s, description=%s, category=%s, job_type=%s, duration=%s, budget_usd=%s, connects_required=%s, daily_rate=%s, max_days=%s WHERE id=%s",
+                (title, desc, category, jtype, duration, budget, conn_req, daily_rate, max_days, job_id),
             )
         else:
             STORE.execute(
-                f"UPDATE {STORE.t('jobs')} SET title=%s, description=%s, category=%s, duration=%s WHERE id=%s",
-                (title, desc, category, duration, job_id),
+                f"UPDATE {STORE.t('jobs')} SET title=%s, description=%s, category=%s, job_type=%s, duration=%s, budget_usd=%s, connects_required=%s WHERE id=%s",
+                (title, desc, category, jtype, duration, budget, conn_req, job_id),
             )
         
         # Regenerate slug if title changed (updated_at will auto-update via TIMESTAMP)
@@ -4925,12 +4932,12 @@ def employer_edit_job(job_id):
             slug = _generate_job_slug(title, job_id)
             STORE.execute(f"UPDATE {STORE.t('jobs')} SET slug=%s WHERE id=%s", (slug, job_id))
         
-        audit_log(uid, "JOB_EDITED", "job", job_id, details=f"Title changed from '{job['title']}' to '{title}'")
+        audit_log(uid, "JOB_EDITED", "job", job_id, details=f"Edited: title, category, type, pricing")
         flash("Job updated successfully!", "success")
         return redirect(url_for("employer_view_job", job_id=job_id))
     
     # GET - show edit form pre-populated with current job data
-    return render_template("employer/edit_job.html", job=job, categories=JOB_CATEGORIES)
+    return render_template("employer/edit_job.html", job=job, categories=JOB_CATEGORIES, job_types=JOB_TYPES)
 
 
 @app.route("/employer/jobs/<int:job_id>")
