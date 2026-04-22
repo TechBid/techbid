@@ -43,6 +43,7 @@
     <div style="display:flex;gap:12px;flex-wrap:wrap;">
       {% if job.status == 'open' %}
       <a href="{{ url_for('employer_applicants', job_id=job.id) }}" class="btn btn-primary">View Applicants</a>
+      <a href="{{ url_for('employer_edit_job', job_id=job.id) }}" class="btn btn-secondary">Edit Job</a>
       {% else %}
       <a href="{{ url_for('contract_room', job_id=job.id) }}" class="btn btn-primary">Go to Contract Room</a>
       {% endif %}

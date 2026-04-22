@@ -4847,6 +4847,92 @@ def employer_post_job():
                          sub_info=sub_info)
 
 
+@app.route("/employer/jobs/<int:job_id>/edit", methods=["GET", "POST"])
+@employer_required
+@profile_required
+def employer_edit_job(job_id):
+    uid = session["user_id"]
+    job = STORE.query_one(f"SELECT * FROM {STORE.t('jobs')} WHERE id=%s AND employer_id=%s", (job_id, uid))
+    if not job:
+        flash("Job not found or you don't have permission to edit it.", "error")
+        return redirect(url_for("employer_dashboard"))
+    
+    if job.get("is_robot"):
+        flash("Cannot edit AI-generated jobs.", "warning")
+        return redirect(url_for("employer_dashboard"))
+    
+    if request.method == "POST":
+        if not verify_csrf():
+            flash("Invalid request.", "error")
+            return redirect(url_for("employer_edit_job", job_id=job_id))
+        
+        title    = request.form.get("title", "").strip()[:255]
+        desc     = request.form.get("description", "").strip()[:3000]
+        category = request.form.get("category", "")
+        duration = request.form.get("duration", "").strip()[:80]
+        
+        # Hourly job fields
+        hourly_rate = None
+        max_hours = None
+        if job["job_type"] == "hourly":
+            try:
+                hourly_rate = float(request.form.get("hourly_rate", 0) or 0)
+                max_hours = int(request.form.get("max_hours", 0) or 0)
+                if hourly_rate <= 0 or max_hours <= 0:
+                    flash("Hourly rate and max hours must be positive values.", "error")
+                    return redirect(url_for("employer_edit_job", job_id=job_id))
+            except (ValueError, TypeError):
+                flash("Invalid hourly rate or max hours value.", "error")
+                return redirect(url_for("employer_edit_job", job_id=job_id))
+        
+        # Daily job fields
+        daily_rate = None
+        max_days = None
+        if job["job_type"] == "daily":
+            try:
+                daily_rate = float(request.form.get("daily_rate", 0) or 0)
+                max_days = int(request.form.get("max_days", 0) or 0)
+                if daily_rate <= 0 or max_days <= 0:
+                    flash("Daily rate and max days must be positive values.", "error")
+                    return redirect(url_for("employer_edit_job", job_id=job_id))
+            except (ValueError, TypeError):
+                flash("Invalid daily rate or max days value.", "error")
+                return redirect(url_for("employer_edit_job", job_id=job_id))
+        
+        if not title or category not in JOB_CATEGORIES:
+            flash("Please fill in all required fields correctly.", "error")
+            return redirect(url_for("employer_edit_job", job_id=job_id))
+        
+        # Update job
+        if job["job_type"] == "hourly":
+            STORE.execute(
+                f"UPDATE {STORE.t('jobs')} SET title=%s, description=%s, category=%s, duration=%s, hourly_rate=%s, max_hours=%s WHERE id=%s",
+                (title, desc, category, duration, hourly_rate, max_hours, job_id),
+            )
+        elif job["job_type"] == "daily":
+            STORE.execute(
+                f"UPDATE {STORE.t('jobs')} SET title=%s, description=%s, category=%s, duration=%s, daily_rate=%s, max_days=%s WHERE id=%s",
+                (title, desc, category, duration, daily_rate, max_days, job_id),
+            )
+        else:
+            STORE.execute(
+                f"UPDATE {STORE.t('jobs')} SET title=%s, description=%s, category=%s, duration=%s WHERE id=%s",
+                (title, desc, category, duration, job_id),
+            )
+        
+        # Regenerate slug if title changed (updated_at will auto-update via TIMESTAMP)
+        if title != job["title"]:
+            slug = _generate_job_slug(title, job_id)
+            STORE.execute(f"UPDATE {STORE.t('jobs')} SET slug=%s WHERE id=%s", (slug, job_id))
+        
+        audit_log(uid, "JOB_EDITED", "job", job_id, details=f"Title changed from '{job['title']}' to '{title}'")
+        flash("Job updated successfully!", "success")
+        return redirect(url_for("employer_view_job", job_id=job_id))
+    
+    # GET - show edit form pre-populated with current job data
+    return render_template("employer/edit_job.html", job=job, categories=JOB_CATEGORIES)
+
+
 @app.route("/employer/jobs/<int:job_id>")
 @employer_required
 def employer_view_job(job_id):

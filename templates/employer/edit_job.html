@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% block title %}Edit Job — TechBid{% endblock %}
+{% block body %}
+<div class="page-wrap">
+<div class="container" style="max-width:680px;">
+  <div class="page-header"><h1>Edit Job</h1><p>Update job details. Changes are saved immediately.</p></div>
+  
+  <div style="background:var(--bg-secondary);border-left:4px solid var(--info);padding:16px;margin-bottom:24px;border-radius:4px;">
+    <p style="margin:0;color:var(--text-primary);"><strong>Job ID: #{{ job.id }}</strong></p>
+    <p style="margin:8px 0 0 0;color:var(--text-muted);font-size:0.9rem;">Posted on {{ job.created_at.strftime('%B %d, %Y') if job.created_at else 'Unknown date' }}</p>
+  </div>
+
+  <form method="POST" id="edit-job-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="form-group">
+      <label class="form-label" for="title">Job title *</label>
+      <input id="title" type="text" name="title" class="form-input" required placeholder="e.g. Senior React Developer needed" value="{{ job.title or '' }}">
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label" for="category">Category *</label>
+        <select id="category" name="category" class="form-select" required>
+          <option value="">— Select —</option>
+          {% for c in categories %}<option value="{{ c }}" {% if c == job.category %}selected{% endif %}>{{ c }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="job_type">Job type</label>
+        <input type="text" class="form-input" value="{{ job.job_type | capitalize }}" disabled style="background:var(--bg-secondary);color:var(--text-muted);">
+        <p style="font-size:0.85rem;color:var(--text-muted);margin-top:4px;">Job type cannot be changed</p>
+      </div>
+    </div>
+    
+    <!-- Budget for Fixed-Price Jobs -->
+    <div class="form-row" id="budget-row" {% if job.job_type != 'fixed' %}style="display:none;"{% endif %}>
+      <div class="form-group">
+        <label class="form-label" for="budget_usd">Budget (USD) *</label>
+        <input id="budget_usd" type="number" name="budget_usd" class="form-input" min="1" step="0.01" placeholder="e.g. 500" value="{{ job.budget_usd or '' }}">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="duration">Duration</label>
+        <input id="duration" type="text" name="duration" class="form-input" placeholder="e.g. 2 weeks, 1 month" value="{{ job.duration or '' }}">
+      </div>
+    </div>
+
+    <!-- Hourly Job Fields -->
+    <div class="form-row" id="hourly-row" {% if job.job_type != 'hourly' %}style="display:none;"{% endif %}>
+      <div class="form-group">
+        <label class="form-label" for="hourly_rate">Hourly Rate (USD) *</label>
+        <input id="hourly_rate" type="number" name="hourly_rate" class="form-input" min="1" step="0.01" placeholder="e.g. 50" value="{{ job.hourly_rate or '' }}">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="max_hours">Max Hours *</label>
+        <input id="max_hours" type="number" name="max_hours" class="form-input" min="1" step="1" placeholder="e.g. 100" value="{{ job.max_hours or '' }}">
+      </div>
+    </div>
+
+    <!-- Daily Job Fields -->
+    <div class="form-row" id="daily-row" {% if job.job_type != 'daily' %}style="display:none;"{% endif %}>
+      <div class="form-group">
+        <label class="form-label" for="daily_rate">Daily Rate (USD) *</label>
+        <input id="daily_rate" type="number" name="daily_rate" class="form-input" min="1" step="0.01" placeholder="e.g. 200" value="{{ job.daily_rate or '' }}">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="max_days">Max Days *</label>
+        <input id="max_days" type="number" name="max_days" class="form-input" min="1" step="1" placeholder="e.g. 30" value="{{ job.max_days or '' }}">
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label" for="description">Job description *</label>
+      <textarea id="description" name="description" class="form-textarea" rows="7" required
+                placeholder="Describe the role, responsibilities, required skills, and any other details…">{{ job.description or '' }}</textarea>
+    </div>
+
+    <!-- Submit Button -->
+    <button type="submit" id="edit-btn" class="btn btn-primary btn-block">
+      Save Changes
+    </button>
+  </form>
+
+  <script>
+    // For edit form, job type is fixed so we don't need change handlers
+    // Just ensure correct field visibility on page load
+    const jobType = '{{ job.job_type }}';
+    const budgetRow = document.getElementById('budget-row');
+    const hourlyRow = document.getElementById('hourly-row');
+    const dailyRow = document.getElementById('daily-row');
+
+    if (jobType === 'hourly') {
+      budgetRow.style.display = 'none';
+      hourlyRow.style.display = 'grid';
+      dailyRow.style.display = 'none';
+    } else if (jobType === 'daily') {
+      budgetRow.style.display = 'none';
+      hourlyRow.style.display = 'none';
+      dailyRow.style.display = 'grid';
+    } else {
+      budgetRow.style.display = 'grid';
+      hourlyRow.style.display = 'none';
+      dailyRow.style.display = 'none';
+    }
+  </script>
+</div>
+</div>
+{% endblock %}
