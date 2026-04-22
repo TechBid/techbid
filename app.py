@@ -1984,7 +1984,7 @@ def _get_max_simulated_applicants(category: str) -> int:
     if category in toughest:
         return 5
     
-    # SIMPLER (max 12): Low barrier to entry, broad talent pool
+    # SIMPLER (max 20): Low barrier to entry, broad talent pool
     simpler = {
         "Content Writing & Copywriting",
         "Animation & Motion Graphics",
@@ -1998,14 +1998,14 @@ def _get_max_simulated_applicants(category: str) -> int:
         "Social Media Management",
     }
     if category in simpler:
-        return 12
+        return 20
     
-    # MEDIUM (max 10): Professional skills, moderate barrier to entry
+    # MEDIUM (max 13): Professional skills, moderate barrier to entry
     # (Web Development, Mobile Development, UI/UX Design, Data Science & Analytics,
     #  Technical Writing, Quality Assurance & Testing, E-commerce & Shopify,
     #  WordPress Development, Business Analysis, Graphic Design, Video Editing,
     #  Translation & Localization, Accounting & Finance, Legal Services)
-    return 10
+    return 13
 
 
 def _simulate_robot_activity(job_id: int, created_at, awarded_at, category: str = "") -> tuple[int, int, int]:
@@ -2030,7 +2030,7 @@ def _simulate_robot_activity(job_id: int, created_at, awarded_at, category: str 
     
     # Get max applicants based on category difficulty
     max_applicants = _get_max_simulated_applicants(category)
-    min_applicants = max(1, max_applicants // 3)  # Min is at least 1 or third of max
+    min_applicants = max(2, max_applicants // 2)  # Min is at least 2 or half of max
     proposal_target = rng.randint(min_applicants, max_applicants)
     invite_target = rng.randint(2, min(10, max(2, proposal_target // 3)))
     interview_target = rng.randint(1, min(5, max(1, invite_target)))
