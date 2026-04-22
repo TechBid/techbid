@@ -3947,7 +3947,7 @@ def worker_apply(slug_or_id):
         bid_connects = job["connects_required"]
     connects_needed = bid_connects
 
-    user = STORE.query_one(f"SELECT connects_balance FROM {STORE.t('users')} WHERE id=%s", (uid,))
+    user = STORE.query_one(f"SELECT id, email, full_name, connects_balance FROM {STORE.t('users')} WHERE id=%s", (uid,))
     if not user or user["connects_balance"] < connects_needed:
         flash(f"You need {connects_needed} connects to apply with that bid. Buy more connects.", "warning")
         return redirect(url_for("worker_buy_connects"))
