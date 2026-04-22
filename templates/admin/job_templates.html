@@ -1,18 +1,27 @@
-{% extends "admin/base.html" %}
+{% extends "base.html" %}
 {% block title %}Job Templates — Admin{% endblock %}
-{% block content %}
+{% block body %}
 
-<div style="padding:24px;">
-  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;">
-    <h1 style="font-size:1.8rem;margin:0;">Job Templates</h1>
-    <button class="btn btn-primary" onclick="document.getElementById('add-template-modal').style.display='flex'">
-      + Add Template
-    </button>
-  </div>
+<div class="page-wrap">
+<div class="container">
+  <div class="layout-2col">
+    <aside class="sidebar">
+      <ul class="sidebar-nav">
+        <li><a href="{{ url_for('admin_dashboard') }}">Dashboard</a></li>
+        <li><a href="{{ url_for('admin_jobs') }}">Jobs</a></li>
+        <li><a href="{{ url_for('admin_job_templates') }}" class="active">Job Templates</a></li>
+        <li><a href="{{ url_for('admin_logout') }}" style="color:var(--danger);">Log out</a></li>
+      </ul>
+    </aside>
+    <main>
+      <div class="page-header">
+        <h1>Job Templates</h1>
+        <p>Create reusable job templates and generate AI jobs instantly.</p>
+      </div>
 
-  <p style="color:var(--text-muted);margin-bottom:20px;">
-    Create reusable job templates and generate AI jobs from them. Click "Add Job" to instantly create a robot job using a template.
-  </p>
+      <button class="btn btn-primary" style="margin-bottom:20px;" onclick="document.getElementById('add-template-modal').style.display='flex'">
+        + Add Template
+      </button>
 
   <!-- Add Template Modal -->
   <div id="add-template-modal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:1000;align-items:center;justify-content:center;">
@@ -128,58 +137,61 @@
     </div>
   </div>
 
-  <!-- Templates Grid -->
-  {% if templates %}
-  <div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(450px, 1fr));gap:16px;">
-    {% for template in templates %}
-    <div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:8px;padding:16px;">
-      <div style="display:flex;justify-content:space-between;align-items:start;gap:12px;margin-bottom:12px;">
-        <div style="flex:1;">
-          <h3 style="margin:0 0 4px 0;font-size:1.05rem;">{{ template.title }}</h3>
-          <p style="margin:0;font-size:0.9rem;color:var(--text-muted);">{{ template.category }}</p>
+      <!-- Templates Grid -->
+      {% if templates %}
+      <div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(450px, 1fr));gap:16px;">
+        {% for template in templates %}
+        <div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:8px;padding:16px;">
+          <div style="display:flex;justify-content:space-between;align-items:start;gap:12px;margin-bottom:12px;">
+            <div style="flex:1;">
+              <h3 style="margin:0 0 4px 0;font-size:1.05rem;">{{ template.title }}</h3>
+              <p style="margin:0;font-size:0.9rem;color:var(--text-muted);">{{ template.category }}</p>
+            </div>
+            <span style="background:var(--primary);color:white;padding:4px 8px;border-radius:4px;font-size:0.8rem;white-space:nowrap;">
+              {{ template.job_type | capitalize }}
+            </span>
+          </div>
+
+          <div style="background:var(--surface);padding:12px;border-radius:4px;margin-bottom:12px;border-left:3px solid var(--primary);">
+            <p style="margin:0;font-size:0.95rem;color:var(--text);line-height:1.5;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;">
+              {{ template.description[:150] }}{% if template.description|length > 150 %}...{% endif %}
+            </p>
+          </div>
+
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;font-size:0.85rem;color:var(--text-muted);">
+            <div><strong>Budget:</strong> ${{ template.budget_usd }}</div>
+            <div><strong>Connects:</strong> {{ template.connects_required }}</div>
+          </div>
+
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
+            <button type="button" class="btn btn-sm" style="background:var(--info);color:white;cursor:pointer;" onclick="editTemplate({{ template | tojson }})">
+              ✎ Edit
+            </button>
+            <form method="POST" action="{{ url_for('admin_create_job_from_template', template_id=template.id) }}" style="margin:0;">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button type="submit" class="btn btn-sm" style="background:var(--success);color:white;width:100%;cursor:pointer;">
+                ➕ Add Job
+              </button>
+            </form>
+            <form method="POST" action="{{ url_for('admin_delete_job_template', template_id=template.id) }}" style="margin:0;" onsubmit="return confirm('Delete this template?');">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button type="submit" class="btn btn-sm" style="background:#dc3545;color:white;width:100%;cursor:pointer;">
+                🗑 Delete
+              </button>
+            </form>
+          </div>
         </div>
-        <span style="background:var(--primary);color:white;padding:4px 8px;border-radius:4px;font-size:0.8rem;white-space:nowrap;">
-          {{ template.job_type | capitalize }}
-        </span>
+        {% endfor %}
       </div>
-
-      <div style="background:var(--surface);padding:12px;border-radius:4px;margin-bottom:12px;border-left:3px solid var(--primary);">
-        <p style="margin:0;font-size:0.95rem;color:var(--text);line-height:1.5;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;">
-          {{ template.description[:150] }}{% if template.description|length > 150 %}...{% endif %}
-        </p>
+      {% else %}
+      <div style="text-align:center;padding:40px;background:var(--bg-secondary);border-radius:8px;color:var(--text-muted);">
+        <p style="font-size:1.1rem;margin:0;">No templates yet</p>
+        <p style="margin:8px 0 0 0;">Create your first job template to get started</p>
       </div>
-
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;font-size:0.85rem;color:var(--text-muted);">
-        <div><strong>Budget:</strong> ${{ template.budget_usd }}</div>
-        <div><strong>Connects:</strong> {{ template.connects_required }}</div>
-      </div>
-
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
-        <button type="button" class="btn btn-sm" style="background:var(--info);color:white;cursor:pointer;" onclick="editTemplate({{ template | tojson }})">
-          ✎ Edit
-        </button>
-        <form method="POST" action="{{ url_for('admin_create_job_from_template', template_id=template.id) }}" style="margin:0;">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <button type="submit" class="btn btn-sm" style="background:var(--success);color:white;width:100%;cursor:pointer;">
-            ➕ Add Job
-          </button>
-        </form>
-        <form method="POST" action="{{ url_for('admin_delete_job_template', template_id=template.id) }}" style="margin:0;" onsubmit="return confirm('Delete this template?');">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <button type="submit" class="btn btn-sm" style="background:#dc3545;color:white;width:100%;cursor:pointer;">
-            🗑 Delete
-          </button>
-        </form>
-      </div>
-    </div>
-    {% endfor %}
+      {% endif %}
+    </main>
   </div>
-  {% else %}
-  <div style="text-align:center;padding:40px;background:var(--bg-secondary);border-radius:8px;color:var(--text-muted);">
-    <p style="font-size:1.1rem;margin:0;">No templates yet</p>
-    <p style="margin:8px 0 0 0;">Create your first job template to get started</p>
-  </div>
-  {% endif %}
+</div>
 </div>
 
 <style>
