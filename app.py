@@ -7192,11 +7192,11 @@ def sitemap_by_type(sitemap_type):
                 LOG.debug(f"Sitemap static page error ({endpoint}): {e}")
     
     elif sitemap_type == "jobs":
-        # ALL ACTIVE JOBS - individual job listings are high-value SEO
+        # ALL ACTIVE JOBS (real + robot) - both are valuable SEO content
         try:
             jobs = STORE.query_all(
                 f"SELECT id, slug, created_at, COALESCE(updated_at, created_at) as lastmod_col, status FROM {STORE.t('jobs')} "
-                f"WHERE status='open' AND is_robot=0 "
+                f"WHERE status='open' "
                 f"ORDER BY created_at DESC LIMIT 50000",
                 ()
             )
