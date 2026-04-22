@@ -1,0 +1,251 @@
+{% extends "admin/base.html" %}
+{% block title %}Job Templates — Admin{% endblock %}
+{% block content %}
+
+<div style="padding:24px;">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;">
+    <h1 style="font-size:1.8rem;margin:0;">Job Templates</h1>
+    <button class="btn btn-primary" onclick="document.getElementById('add-template-modal').style.display='flex'">
+      + Add Template
+    </button>
+  </div>
+
+  <p style="color:var(--text-muted);margin-bottom:20px;">
+    Create reusable job templates and generate AI jobs from them. Click "Add Job" to instantly create a robot job using a template.
+  </p>
+
+  <!-- Add Template Modal -->
+  <div id="add-template-modal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:1000;align-items:center;justify-content:center;">
+    <div style="background:var(--surface);padding:24px;border-radius:8px;max-width:600px;width:90%;max-height:90vh;overflow-y:auto;">
+      <h2 style="margin-top:0;">Add Job Template</h2>
+      <form method="POST" action="{{ url_for('admin_add_job_template') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        
+        <div class="form-group">
+          <label class="form-label">Title *</label>
+          <input type="text" name="title" class="form-input" required placeholder="e.g. Senior React Developer needed">
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Category *</label>
+            <select name="category" class="form-select" required>
+              <option value="">— Select —</option>
+              {% for c in categories %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Type *</label>
+            <select name="job_type" class="form-select" required>
+              {% for t in job_types %}<option value="{{ t }}">{{ t | capitalize }}</option>{% endfor %}
+            </select>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Budget (USD) *</label>
+            <input type="number" name="budget_usd" class="form-input" min="1" step="0.01" value="500" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Duration</label>
+            <input type="text" name="duration" class="form-input" placeholder="e.g. 2 weeks">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Connects Required</label>
+          <input type="number" name="connects_required" class="form-input" min="1" value="20">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Description *</label>
+          <textarea name="description" class="form-textarea" rows="8" required placeholder="Write a compelling job description..."></textarea>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:24px;">
+          <button type="button" class="btn" onclick="document.getElementById('add-template-modal').style.display='none'" style="background:#e0e0e0;">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save Template</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Edit Template Modal -->
+  <div id="edit-template-modal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:1000;align-items:center;justify-content:center;">
+    <div style="background:var(--surface);padding:24px;border-radius:8px;max-width:600px;width:90%;max-height:90vh;overflow-y:auto;">
+      <h2 style="margin-top:0;">Edit Template</h2>
+      <form method="POST" id="edit-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        
+        <div class="form-group">
+          <label class="form-label">Title *</label>
+          <input type="text" name="title" class="form-input" id="edit-title" required>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Category *</label>
+            <select name="category" class="form-select" id="edit-category" required>
+              <option value="">— Select —</option>
+              {% for c in categories %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Type *</label>
+            <select name="job_type" class="form-select" id="edit-job_type" required>
+              {% for t in job_types %}<option value="{{ t }}">{{ t | capitalize }}</option>{% endfor %}
+            </select>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Budget (USD) *</label>
+            <input type="number" name="budget_usd" class="form-input" id="edit-budget_usd" min="1" step="0.01" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Duration</label>
+            <input type="text" name="duration" class="form-input" id="edit-duration">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Connects Required</label>
+          <input type="number" name="connects_required" class="form-input" id="edit-connects_required" min="1">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Description *</label>
+          <textarea name="description" class="form-textarea" id="edit-description" rows="8" required></textarea>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:24px;">
+          <button type="button" class="btn" onclick="document.getElementById('edit-template-modal').style.display='none'" style="background:#e0e0e0;">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save Changes</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Templates Grid -->
+  {% if templates %}
+  <div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(450px, 1fr));gap:16px;">
+    {% for template in templates %}
+    <div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:8px;padding:16px;">
+      <div style="display:flex;justify-content:space-between;align-items:start;gap:12px;margin-bottom:12px;">
+        <div style="flex:1;">
+          <h3 style="margin:0 0 4px 0;font-size:1.05rem;">{{ template.title }}</h3>
+          <p style="margin:0;font-size:0.9rem;color:var(--text-muted);">{{ template.category }}</p>
+        </div>
+        <span style="background:var(--primary);color:white;padding:4px 8px;border-radius:4px;font-size:0.8rem;white-space:nowrap;">
+          {{ template.job_type | capitalize }}
+        </span>
+      </div>
+
+      <div style="background:var(--surface);padding:12px;border-radius:4px;margin-bottom:12px;border-left:3px solid var(--primary);">
+        <p style="margin:0;font-size:0.95rem;color:var(--text);line-height:1.5;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;">
+          {{ template.description[:150] }}{% if template.description|length > 150 %}...{% endif %}
+        </p>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;font-size:0.85rem;color:var(--text-muted);">
+        <div><strong>Budget:</strong> ${{ template.budget_usd }}</div>
+        <div><strong>Connects:</strong> {{ template.connects_required }}</div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
+        <button type="button" class="btn btn-sm" style="background:var(--info);color:white;cursor:pointer;" onclick="editTemplate({{ template | tojson }})">
+          ✎ Edit
+        </button>
+        <form method="POST" action="{{ url_for('admin_create_job_from_template', template_id=template.id) }}" style="margin:0;">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button type="submit" class="btn btn-sm" style="background:var(--success);color:white;width:100%;cursor:pointer;">
+            ➕ Add Job
+          </button>
+        </form>
+        <form method="POST" action="{{ url_for('admin_delete_job_template', template_id=template.id) }}" style="margin:0;" onsubmit="return confirm('Delete this template?');">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button type="submit" class="btn btn-sm" style="background:#dc3545;color:white;width:100%;cursor:pointer;">
+            🗑 Delete
+          </button>
+        </form>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div style="text-align:center;padding:40px;background:var(--bg-secondary);border-radius:8px;color:var(--text-muted);">
+    <p style="font-size:1.1rem;margin:0;">No templates yet</p>
+    <p style="margin:8px 0 0 0;">Create your first job template to get started</p>
+  </div>
+  {% endif %}
+</div>
+
+<style>
+  .form-group {
+    margin-bottom: 16px;
+  }
+  .form-label {
+    display: block;
+    margin-bottom: 6px;
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: var(--text-primary);
+  }
+  .form-input, .form-select, .form-textarea {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    font-family: inherit;
+    font-size: 0.95rem;
+    background: var(--surface);
+    color: var(--text);
+  }
+  .form-textarea {
+    resize: vertical;
+  }
+  .form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+  .btn {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 4px;
+    font-size: 0.9rem;
+    cursor: pointer;
+    text-decoration: none;
+    display: inline-block;
+  }
+  .btn-primary {
+    background: var(--primary);
+    color: white;
+  }
+  .btn-sm {
+    padding: 6px 12px;
+    font-size: 0.85rem;
+  }
+</style>
+
+<script>
+  function editTemplate(template) {
+    document.getElementById('edit-title').value = template.title;
+    document.getElementById('edit-category').value = template.category;
+    document.getElementById('edit-job_type').value = template.job_type;
+    document.getElementById('edit-budget_usd').value = template.budget_usd;
+    document.getElementById('edit-duration').value = template.duration || '';
+    document.getElementById('edit-connects_required').value = template.connects_required;
+    document.getElementById('edit-description').value = template.description;
+    
+    const form = document.getElementById('edit-form');
+    form.action = `/secure-admin-console-9x7k2m/job-templates/${template.id}/edit`;
+    form.method = 'POST';
+    
+    document.getElementById('edit-template-modal').style.display = 'flex';
+  }
+</script>
+
+{% endblock %}

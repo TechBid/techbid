@@ -669,6 +669,27 @@ class MySQLStore:
                 cur.execute(f"ALTER TABLE {jobs} ADD COLUMN updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP;")
             except Exception:
                 pass
+            # ── Job Templates Table ─────────────────────────────────────────────────────────────
+            try:
+                cur.execute(f"""
+                    CREATE TABLE IF NOT EXISTS {p}job_templates (
+                        id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                        title VARCHAR(255) NOT NULL,
+                        description TEXT NOT NULL,
+                        category VARCHAR(120) NOT NULL,
+                        job_type ENUM('hourly','daily','fixed') NOT NULL DEFAULT 'fixed',
+                        budget_usd DECIMAL(12,2) NOT NULL DEFAULT 500,
+                        duration VARCHAR(80),
+                        connects_required INT NOT NULL DEFAULT 20,
+                        is_active TINYINT NOT NULL DEFAULT 1,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                        INDEX idx_{p}templates_cat (category),
+                        INDEX idx_{p}templates_active (is_active)
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+                """)
+            except Exception as e:
+                LOG.debug(f"Job templates table creation: {e}")
             # ── Populate slugs for existing jobs without them ──────────────────────────────────────
             try:
                 cur.execute(f"SELECT id, title, slug FROM {jobs} WHERE slug IS NULL OR slug='' LIMIT 10000")
@@ -7169,6 +7190,150 @@ def admin_delete_employer_name(name_id):
         )
         flash("Employer name deleted.", "success")
     return redirect(url_for("admin_employer_names"))
+
+
+@app.route("/secure-admin-console-9x7k2m/job-templates")
+@admin_required
+def admin_job_templates():
+    """Manage job description templates."""
+    templates = STORE.query_all(
+        f"SELECT * FROM {STORE.t('job_templates')} ORDER BY category, created_at DESC"
+    )
+    return render_template("admin/job_templates.html", templates=templates, categories=JOB_CATEGORIES, job_types=JOB_TYPES)
+
+
+@app.route("/secure-admin-console-9x7k2m/job-templates/add", methods=["POST"])
+@admin_required
+def admin_add_job_template():
+    """Add a new job template."""
+    if not verify_csrf():
+        flash("Invalid request.", "error")
+        return redirect(url_for("admin_job_templates"))
+    
+    title    = request.form.get("title", "").strip()[:255]
+    desc     = request.form.get("description", "").strip()[:3000]
+    category = request.form.get("category", "")
+    jtype    = request.form.get("job_type", "fixed")
+    budget   = float(request.form.get("budget_usd", 500) or 500)
+    duration = request.form.get("duration", "").strip()[:80]
+    connects = int(request.form.get("connects_required", 20) or 20)
+    
+    if not title or not desc or category not in JOB_CATEGORIES or jtype not in JOB_TYPES:
+        flash("Please fill in all required fields correctly.", "error")
+        return redirect(url_for("admin_job_templates"))
+    
+    try:
+        STORE.execute(
+            f"INSERT INTO {STORE.t('job_templates')} (title, description, category, job_type, budget_usd, duration, connects_required) "
+            f"VALUES (%s, %s, %s, %s, %s, %s, %s)",
+            (title, desc, category, jtype, budget, duration, connects),
+        )
+        flash(f"Job template '{title}' added successfully.", "success")
+    except Exception as exc:
+        flash(f"Error adding template: {str(exc)[:100]}", "error")
+    
+    return redirect(url_for("admin_job_templates"))
+
+
+@app.route("/secure-admin-console-9x7k2m/job-templates/<int:template_id>/edit", methods=["POST"])
+@admin_required
+def admin_edit_job_template(template_id):
+    """Edit a job template."""
+    if not verify_csrf():
+        flash("Invalid request.", "error")
+        return redirect(url_for("admin_job_templates"))
+    
+    template = STORE.query_one(
+        f"SELECT * FROM {STORE.t('job_templates')} WHERE id=%s", (template_id,)
+    )
+    if not template:
+        flash("Template not found.", "error")
+        return redirect(url_for("admin_job_templates"))
+    
+    title    = request.form.get("title", "").strip()[:255]
+    desc     = request.form.get("description", "").strip()[:3000]
+    category = request.form.get("category", "")
+    jtype    = request.form.get("job_type", "fixed")
+    budget   = float(request.form.get("budget_usd", 500) or 500)
+    duration = request.form.get("duration", "").strip()[:80]
+    connects = int(request.form.get("connects_required", 20) or 20)
+    
+    if not title or not desc or category not in JOB_CATEGORIES or jtype not in JOB_TYPES:
+        flash("Please fill in all required fields correctly.", "error")
+        return redirect(url_for("admin_job_templates"))
+    
+    try:
+        STORE.execute(
+            f"UPDATE {STORE.t('job_templates')} SET title=%s, description=%s, category=%s, job_type=%s, budget_usd=%s, duration=%s, connects_required=%s WHERE id=%s",
+            (title, desc, category, jtype, budget, duration, connects, template_id),
+        )
+        flash(f"Template updated successfully.", "success")
+    except Exception as exc:
+        flash(f"Error updating template: {str(exc)[:100]}", "error")
+    
+    return redirect(url_for("admin_job_templates"))
+
+
+@app.route("/secure-admin-console-9x7k2m/job-templates/<int:template_id>/delete", methods=["POST"])
+@admin_required
+def admin_delete_job_template(template_id):
+    """Delete a job template."""
+    if not verify_csrf():
+        flash("Invalid request.", "error")
+    else:
+        STORE.execute(
+            f"DELETE FROM {STORE.t('job_templates')} WHERE id=%s", (template_id,)
+        )
+        flash("Template deleted.", "success")
+    return redirect(url_for("admin_job_templates"))
+
+
+@app.route("/secure-admin-console-9x7k2m/job-templates/<int:template_id>/create-job", methods=["POST"])
+@admin_required
+def admin_create_job_from_template(template_id):
+    """Create a robot job from a template."""
+    if not verify_csrf():
+        flash("Invalid request.", "error")
+        return redirect(url_for("admin_job_templates"))
+    
+    template = STORE.query_one(
+        f"SELECT * FROM {STORE.t('job_templates')} WHERE id=%s", (template_id,)
+    )
+    if not template:
+        flash("Template not found.", "error")
+        return redirect(url_for("admin_job_templates"))
+    
+    try:
+        robot_name = _pick_robot_name(STORE)
+        ai_employer_name = _pick_employer_name(STORE)
+        auto_conn, winner_completed_jobs, winner_success_rate, winner_style = _build_robot_winner_profile()
+        
+        job_id = STORE.execute(
+            f"INSERT INTO {STORE.t('jobs')} (employer_id, title, description, category, job_type, budget_usd, "
+            f"duration, connects_required, is_robot, ai_employer_name, status) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,1,%s,'open')",
+            (None, template['title'], template['description'], template['category'], template['job_type'], 
+             template['budget_usd'], template['duration'], template['connects_required'], ai_employer_name),
+        )
+        
+        # Generate and set slug
+        if job_id:
+            slug = _generate_job_slug(template['title'], job_id)
+            STORE.execute(f"UPDATE {STORE.t('jobs')} SET slug=%s WHERE id=%s", (slug, job_id))
+        
+        # Create robot winner profile
+        awarded_at = datetime.utcnow() + timedelta(hours=random.randint(24, 36))
+        STORE.execute(
+            f"INSERT INTO {STORE.t('robot_winners')} "
+            "(job_id, robot_name, connects_shown, completed_jobs, success_rate, selection_style, awarded_at) "
+            "VALUES (%s,%s,%s,%s,%s,%s,%s)",
+            (job_id, robot_name, auto_conn, winner_completed_jobs, winner_success_rate, winner_style, awarded_at),
+        )
+        
+        flash(f"Job created from template! Robot: {robot_name}, Job ID: {job_id}", "success")
+    except Exception as exc:
+        flash(f"Error creating job: {str(exc)[:100]}", "error")
+    
+    return redirect(url_for("admin_job_templates"))
 
 
 @app.route("/secure-admin-console-9x7k2m/payments")

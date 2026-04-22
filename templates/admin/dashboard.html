@@ -15,6 +15,7 @@
         <li><a href="{{ url_for('admin_create_robot_job') }}">Create Robot Job</a></li>
         <li><a href="{{ url_for('admin_robot_names') }}">Robot Names</a></li>
         <li><a href="{{ url_for('admin_employer_names') }}">Employer Names</a></li>
+        <li><a href="{{ url_for('admin_job_templates') }}" class="{{ 'active' if request.endpoint=='admin_job_templates' }}">Job Templates</a></li>
         <li><a href="{{ url_for('admin_logout') }}" style="color:var(--danger);">Log out</a></li>
       </ul>
     </aside>
