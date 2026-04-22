@@ -411,9 +411,13 @@ tr:hover td { background: #fafafa; }
 }
 .link-input-row {
   display: flex;
-  gap: 8px;
+  gap: 12px;
   align-items: center;
   flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.link-input-row:last-child {
+  margin-bottom: 0;
 }
 .link-input-row .form-input {
   flex: 1 1 320px;
