@@ -2082,12 +2082,12 @@ def _build_robot_winner_profile() -> tuple[int, int, float, str]:
     connects_heavy = random.random() < 0.8
     if connects_heavy:
         connects_shown = random.randint(700, 1800)
-        completed_jobs = random.randint(6, 45)
+        completed_jobs = random.randint(1, 5)
         success_rate = round(random.uniform(74.0, 90.0), 1)
         return (connects_shown, completed_jobs, success_rate, "connects")
 
     connects_shown = random.randint(220, 900)
-    completed_jobs = random.randint(60, 260)
+    completed_jobs = random.randint(1, 5)
     success_rate = round(random.uniform(91.0, 99.3), 1)
     return (connects_shown, completed_jobs, success_rate, "rating")
 
