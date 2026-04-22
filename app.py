@@ -7034,93 +7034,129 @@ Disallow: /dashboard
 Disallow: /employer/dashboard
 Disallow: /worker/dashboard
 Disallow: /contract
-Sitemap: """ + url_for("sitemap_xml", _external=True), 200, {"Content-Type": "text/plain"}
+Sitemap: """ + url_for("sitemap_xml", _external=True, _scheme='https'), 200, {"Content-Type": "text/plain"}
 
 
 @app.route("/sitemap.xml")
 def sitemap_xml():
-    """Generate sitemap.xml for search engines with high-value content."""
+    """Generate sitemap index pointing to separate sitemaps."""
+    from datetime import datetime
+    
+    xml = '<?xml version="1.0" encoding="UTF-8"?>\n'
+    xml += '<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+    
+    # Link to sub-sitemaps
+    sitemaps = [
+        "sitemap-static.xml",
+        "sitemap-jobs.xml",
+        "sitemap-workers.xml",
+    ]
+    
+    for sitemap in sitemaps:
+        xml += f'  <sitemap>\n'
+        xml += f'    <loc>{url_for("sitemap_by_type", sitemap_type=sitemap[:-4], _external=True, _scheme="https")}</loc>\n'
+        xml += f'    <lastmod>{datetime.utcnow().isoformat()}Z</lastmod>\n'
+        xml += f'  </sitemap>\n'
+    
+    xml += '</sitemapindex>'
+    return Response(xml, mimetype="application/xml")
+
+
+@app.route("/sitemap-<sitemap_type>.xml")
+def sitemap_by_type(sitemap_type):
+    """Generate individual sitemaps for different content types."""
     from datetime import datetime
     
     urls = []
     
-    # HIGH-VALUE STATIC PAGES (SEO Priority)
-    static_pages = [
-        ("index", 1.0, "daily"),                    # Homepage
-        ("worker_jobs", 0.9, "daily"),              # Jobs listing (main traffic page)
-        ("employer_pricing", 0.9, "weekly"),        # Pricing (conversion page)
-        ("help_support", 0.8, "monthly"),           # Help
-        ("about", 0.8, "monthly"),                  # About
-        ("terms", 0.5, "yearly"),                   # Terms
-        ("privacy", 0.5, "yearly"),                 # Privacy
-    ]
+    if sitemap_type == "static":
+        # STATIC PAGES with accurate priorities and update frequencies
+        static_pages = [
+            ("index", 1.0, "weekly", None),                       # Homepage - changes with new jobs
+            ("worker_jobs", 0.95, "daily", None),                 # Job listings - highest priority
+            ("help_support", 0.7, "monthly", None),               # Help/Support
+            ("about", 0.6, "yearly", None),                       # About
+            ("contact", 0.6, "yearly", None),                     # Contact
+            ("employer_pricing", 0.8, "monthly", None),           # Pricing page
+            ("terms", 0.4, "yearly", None),                       # Legal
+            ("privacy", 0.4, "yearly", None),                     # Legal
+        ]
+        
+        for endpoint, priority, changefreq, lastmod in static_pages:
+            try:
+                urls.append({
+                    "loc": url_for(endpoint, _external=True, _scheme='https'),
+                    "priority": priority,
+                    "changefreq": changefreq,
+                    "lastmod": lastmod or datetime.utcnow().isoformat() + "Z",
+                })
+            except Exception as e:
+                LOG.debug(f"Sitemap static page error ({endpoint}): {e}")
     
-    for endpoint, priority, changefreq in static_pages:
+    elif sitemap_type == "jobs":
+        # ALL ACTIVE JOBS - individual job listings are high-value SEO
         try:
-            urls.append({
-                "loc": url_for(endpoint, _external=True, _scheme='https'),
-                "changefreq": changefreq,
-                "priority": priority,
-                "lastmod": datetime.utcnow().isoformat() + "Z",
-            })
-        except:
-            pass
+            jobs = STORE.query_all(
+                f"SELECT id, created_at, updated_at, status FROM {STORE.t('jobs')} "
+                f"WHERE status='open' AND is_robot=0 "
+                f"ORDER BY updated_at DESC LIMIT 50000",
+                ()
+            )
+            for job in jobs:
+                try:
+                    # Use updated_at if available, otherwise created_at
+                    lastmod = job.get("updated_at") or job.get("created_at")
+                    lastmod_str = lastmod.isoformat() + "Z" if isinstance(lastmod, datetime) else datetime.utcnow().isoformat() + "Z"
+                    
+                    urls.append({
+                        "loc": url_for("worker_job_detail", job_id=job["id"], _external=True, _scheme='https'),
+                        "priority": 0.85,  # High priority for specific job listings
+                        "changefreq": "weekly",  # Individual jobs don't change daily
+                        "lastmod": lastmod_str,
+                    })
+                except Exception as e:
+                    LOG.debug(f"Sitemap job error (ID {job.get('id')}): {e}")
+        except Exception as e:
+            LOG.debug(f"Sitemap jobs query error: {e}")
     
-    # HIGH-VALUE: ALL OPEN JOBS (Google cares about this)
-    try:
-        jobs = STORE.query_all(
-            f"SELECT id, created_at FROM {STORE.t('jobs')} WHERE status='open' AND is_robot=0 ORDER BY created_at DESC LIMIT 5000",
-            ()
-        )
-        for job in jobs:
-            try:
-                urls.append({
-                    "loc": url_for("worker_job_detail", job_id=job["id"], _external=True, _scheme='https'),
-                    "changefreq": "daily",
-                    "priority": 0.8,  # High priority for job listings
-                    "lastmod": job.get("created_at", datetime.utcnow()).isoformat() + "Z" if isinstance(job.get("created_at"), datetime) else datetime.utcnow().isoformat() + "Z",
-                })
-            except Exception as e:
-                LOG.debug(f"Sitemap job error: {e}")
-                pass
-    except Exception as e:
-        LOG.debug(f"Sitemap jobs query error: {e}")
-        pass
+    elif sitemap_type == "workers":
+        # VERIFIED WORKER PROFILES - user-generated content = SEO gold
+        try:
+            workers = STORE.query_all(
+                f"SELECT id, updated_at FROM {STORE.t('users')} "
+                f"WHERE role='worker' AND is_verified=1 "
+                f"ORDER BY updated_at DESC LIMIT 50000",
+                ()
+            )
+            for worker in workers:
+                try:
+                    lastmod = worker.get("updated_at")
+                    lastmod_str = lastmod.isoformat() + "Z" if isinstance(lastmod, datetime) else datetime.utcnow().isoformat() + "Z"
+                    
+                    urls.append({
+                        "loc": url_for("worker_profile", worker_id=worker["id"], _external=True, _scheme='https'),
+                        "priority": 0.7,  # Profiles are important but less than specific job listings
+                        "changefreq": "monthly",  # Worker profiles update less frequently
+                        "lastmod": lastmod_str,
+                    })
+                except Exception as e:
+                    LOG.debug(f"Sitemap worker error (ID {worker.get('id')}): {e}")
+        except Exception as e:
+            LOG.debug(f"Sitemap workers query error: {e}")
     
-    # HIGH-VALUE: FREELANCER PROFILES (User-generated content = SEO gold)
-    try:
-        workers = STORE.query_all(
-            f"SELECT id, updated_at FROM {STORE.t('users')} WHERE role='worker' AND is_verified=1 ORDER BY updated_at DESC LIMIT 2000",
-            ()
-        )
-        for worker in workers:
-            try:
-                urls.append({
-                    "loc": url_for("worker_profile", worker_id=worker["id"], _external=True, _scheme='https'),
-                    "changefreq": "weekly",
-                    "priority": 0.7,  # High priority for worker profiles
-                    "lastmod": worker.get("updated_at", datetime.utcnow()).isoformat() + "Z" if isinstance(worker.get("updated_at"), datetime) else datetime.utcnow().isoformat() + "Z",
-                })
-            except Exception as e:
-                LOG.debug(f"Sitemap worker error: {e}")
-                pass
-    except Exception as e:
-        LOG.debug(f"Sitemap workers query error: {e}")
-        pass
-    
-    # Generate XML with proper formatting
+    # Generate XML for this sitemap
     xml = '<?xml version="1.0" encoding="UTF-8"?>\n'
     xml += '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+    
     for url in urls:
         xml += '  <url>\n'
         xml += f'    <loc>{url["loc"]}</loc>\n'
         xml += f'    <lastmod>{url["lastmod"]}</lastmod>\n'
         xml += f'    <changefreq>{url["changefreq"]}</changefreq>\n'
-        xml += f'    <priority>{url["priority"]}</priority>\n'
+        xml += f'    <priority>{url["priority"]:.1f}</priority>\n'
         xml += '  </url>\n'
-    xml += '</urlset>'
     
-    # Return with correct Content-Type header
+    xml += '</urlset>'
     return Response(xml, mimetype="application/xml")
 
 
