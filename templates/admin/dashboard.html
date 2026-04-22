@@ -8,6 +8,7 @@
       <ul class="sidebar-nav">
         <li><a href="{{ url_for('admin_dashboard') }}" class="{{ 'active' if request.endpoint=='admin_dashboard' }}">Dashboard</a></li>
         <li><a href="{{ url_for('admin_jobs') }}" class="{{ 'active' if 'admin_job' in request.endpoint }}">Jobs</a></li>
+        <li><a href="{{ url_for('admin_robot_applications') }}" class="{{ 'active' if request.endpoint=='admin_robot_applications' }}">Robot Applications</a></li>
         <li><a href="{{ url_for('admin_users') }}" class="{{ 'active' if request.endpoint=='admin_users' }}">Users</a></li>
         <li><a href="{{ url_for('admin_payments') }}" class="{{ 'active' if request.endpoint=='admin_payments' }}">Payments</a></li>
         <li><a href="{{ url_for('admin_job_reports') }}" class="{{ 'active' if request.endpoint=='admin_job_reports' }}">Job Reports</a></li>

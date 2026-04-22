@@ -6701,6 +6701,24 @@ def admin_jobs():
     )
 
 
+@app.route("/secure-admin-console-9x7k2m/robot-applications")
+@admin_required
+def admin_robot_applications():
+    """View all applications for robot/AI jobs."""
+    apps = STORE.query_all(
+        f"SELECT a.id, a.user_id, a.job_id, a.connects_spent, a.cover_letter, a.attachment_links, a.status, a.applied_at, "
+        f"j.title as job_title, j.is_robot, j.employer_id, "
+        f"u.full_name, u.email, u.profile_pic_url "
+        f"FROM {STORE.t('applications')} a "
+        f"JOIN {STORE.t('jobs')} j ON j.id=a.job_id "
+        f"JOIN {STORE.t('users')} u ON u.id=a.user_id "
+        f"WHERE j.is_robot=1 "
+        f"ORDER BY a.applied_at DESC LIMIT 500",
+        ()
+    )
+    return render_template("admin/robot_applications.html", applications=apps)
+
+
 @app.route("/secure-admin-console-9x7k2m/jobs/create-robot", methods=["GET", "POST"])
 @admin_required
 def admin_create_robot_job():

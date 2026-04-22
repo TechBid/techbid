@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% block title %}Robot Job Applications — Admin{% endblock %}
+{% block body %}
+<div class="page-wrap"><div class="container">
+  <div class="layout-2col">
+    <aside class="sidebar"><ul class="sidebar-nav">
+      <li><a href="{{ url_for('admin_dashboard') }}">Dashboard</a></li>
+      <li><a href="{{ url_for('admin_jobs') }}">Jobs</a></li>
+      <li><a href="{{ url_for('admin_robot_applications') }}" class="active">Robot Applications</a></li>
+      <li><a href="{{ url_for('admin_users') }}">Users</a></li>
+      <li><a href="{{ url_for('admin_payments') }}">Payments</a></li>
+      <li><a href="{{ url_for('admin_create_robot_job') }}">Create Robot Job</a></li>
+    </ul></aside>
+    <main>
+      <div class="page-header">
+        <h1>Robot Job Applications ({{ applications|length }})</h1>
+      </div>
+
+      {% if applications %}
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>Applicant</th>
+            <th>Email</th>
+            <th>Job</th>
+            <th>Bid (Connects)</th>
+            <th>Cover Letter</th>
+            <th>Links</th>
+            <th>Status</th>
+            <th>Applied</th>
+          </tr></thead>
+          <tbody>
+          {% for app in applications %}
+          <tr style="border-bottom: 2px solid var(--border);">
+            <td style="font-weight:600;">{{ app.full_name }}</td>
+            <td style="font-size:0.9rem;color:var(--text-muted);">{{ app.email }}</td>
+            <td style="max-width:250px;"><strong>{{ app.job_title }}</strong></td>
+            <td style="text-align:center;">{{ app.connects_spent }} <span style="color:var(--primary);">⚡</span></td>
+            <td style="max-width:350px;padding:12px;background:var(--surface);border-radius:4px;font-size:0.9rem;line-height:1.4;white-space:pre-wrap;word-wrap:break-word;max-height:120px;overflow-y:auto;">
+              {% if app.cover_letter %}
+                {{ app.cover_letter[:200] }}{% if app.cover_letter|length > 200 %}...{% endif %}
+              {% else %}
+                <em style="color:var(--text-muted);">No cover letter</em>
+              {% endif %}
+            </td>
+            <td style="font-size:0.9rem;">
+              {% if app.attachment_links %}
+                {% set links = app.attachment_links.split('\n') if app.attachment_links else [] %}
+                <div style="display:flex;flex-direction:column;gap:4px;">
+                  {% for link in links %}
+                    {% if link.strip() %}
+                      <a href="{{ link.strip() }}" target="_blank" style="color:var(--blue);text-decoration:underline;font-size:0.85rem;word-break:break-all;">
+                        {{ link.strip()[:40] }}{% if link.strip()|length > 40 %}...{% endif %}
+                      </a>
+                    {% endif %}
+                  {% endfor %}
+                </div>
+              {% else %}
+                <em style="color:var(--text-muted);">None</em>
+              {% endif %}
+            </td>
+            <td>
+              {% if app.status == 'accepted' %}
+                <span style="background:#d4edda;color:#155724;padding:4px 8px;border-radius:3px;font-size:0.85rem;font-weight:600;">✓ Accepted</span>
+              {% elif app.status == 'rejected' %}
+                <span style="background:#f8d7da;color:#721c24;padding:4px 8px;border-radius:3px;font-size:0.85rem;font-weight:600;">✗ Rejected</span>
+              {% else %}
+                <span style="background:#fff3cd;color:#856404;padding:4px 8px;border-radius:3px;font-size:0.85rem;">Pending</span>
+              {% endif %}
+            </td>
+            <td style="font-size:0.85rem;color:var(--text-muted);">
+              {% if app.applied_at %}
+                {{ app.applied_at.strftime('%Y-%m-%d %H:%M') }}
+              {% else %}
+                —
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="card-container" style="text-align:center;padding:40px;">
+        <p style="color:var(--text-muted);font-size:1.1rem;">No applications yet for robot jobs.</p>
+      </div>
+      {% endif %}
+    </main>
+  </div>
+</div></div>
+{% endblock %}
