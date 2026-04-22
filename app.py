@@ -3584,9 +3584,9 @@ def _get_employer_stats(employer_id: int | None, is_robot: bool = False) -> dict
     if is_robot or not employer_id:
         # Simulate stats for robot/AI jobs
         import random
-        jobs_posted = random.randint(50, 500)
+        jobs_posted = random.randint(1, 15)
         completed = random.randint(int(jobs_posted * 0.70), int(jobs_posted * 0.95))
-        total_contracts = completed + random.randint(5, int(jobs_posted * 0.20))
+        total_contracts = completed + random.randint(1, max(1, int(jobs_posted * 0.20)))
         hire_rate = random.uniform(60, 98)
         avg_rating = random.uniform(4.5, 5.0)
         
