@@ -17,49 +17,108 @@
       </div>
 
       {% if applications %}
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>Applicant</th>
-            <th>Email</th>
-            <th>Job</th>
-            <th>Bid (Connects)</th>
-            <th>Cover Letter</th>
-            <th>Links</th>
-            <th>Status</th>
-            <th>Applied</th>
-          </tr></thead>
-          <tbody>
-          {% for app in applications %}
-          <tr style="border-bottom: 2px solid var(--border);">
-            <td style="font-weight:600;">{{ app.full_name }}</td>
-            <td style="font-size:0.9rem;color:var(--text-muted);">{{ app.email }}</td>
-            <td style="max-width:250px;"><strong>{{ app.job_title }}</strong></td>
-            <td style="text-align:center;">{{ app.connects_spent }} <span style="color:var(--primary);">⚡</span></td>
-            <td style="max-width:350px;padding:12px;background:var(--surface);border-radius:4px;font-size:0.9rem;line-height:1.4;white-space:pre-wrap;word-wrap:break-word;max-height:120px;overflow-y:auto;">
-              {% if app.cover_letter %}
-                {{ app.cover_letter[:200] }}{% if app.cover_letter|length > 200 %}...{% endif %}
-              {% else %}
-                <em style="color:var(--text-muted);">No cover letter</em>
-              {% endif %}
-            </td>
-            <td style="font-size:0.9rem;">
-              {% if app.attachment_links %}
-                {% set links = app.attachment_links.split('\n') if app.attachment_links else [] %}
-                <div style="display:flex;flex-direction:column;gap:4px;">
-                  {% for link in links %}
-                    {% if link.strip() %}
-                      <a href="{{ link.strip() }}" target="_blank" style="color:var(--blue);text-decoration:underline;font-size:0.85rem;word-break:break-all;">
-                        {{ link.strip()[:40] }}{% if link.strip()|length > 40 %}...{% endif %}
-                      </a>
-                    {% endif %}
-                  {% endfor %}
-                </div>
-              {% else %}
-                <em style="color:var(--text-muted);">None</em>
-              {% endif %}
-            </td>
-            <td>
+      <style>
+        .app-row {
+          border-bottom: 1px solid var(--border);
+          padding: 12px;
+          margin-bottom: 8px;
+          background: var(--white);
+          border-radius: 4px;
+        }
+        .app-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          cursor: pointer;
+          padding: 12px;
+          background: var(--surface);
+          border-radius: 4px;
+          user-select: none;
+        }
+        .app-header:hover {
+          background: var(--border);
+        }
+        .app-header-left {
+          display: flex;
+          gap: 16px;
+          flex: 1;
+          align-items: center;
+        }
+        .app-header-right {
+          display: flex;
+          gap: 12px;
+          align-items: center;
+        }
+        .app-toggle {
+          display: inline-block;
+          width: 20px;
+          text-align: center;
+          font-weight: bold;
+          color: var(--text-muted);
+        }
+        .app-details {
+          display: none;
+          padding: 16px;
+          background: var(--white);
+          border-left: 3px solid var(--primary);
+          margin-top: 4px;
+        }
+        .app-details.open {
+          display: block;
+        }
+        .detail-field {
+          margin-bottom: 16px;
+        }
+        .detail-label {
+          font-weight: 600;
+          color: var(--text-muted);
+          font-size: 0.9rem;
+          margin-bottom: 4px;
+        }
+        .detail-value {
+          padding: 10px;
+          background: var(--surface);
+          border-radius: 4px;
+          word-wrap: break-word;
+          white-space: pre-wrap;
+          line-height: 1.5;
+        }
+        .links-container {
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+        }
+        .link-item {
+          padding: 8px;
+          background: var(--surface);
+          border-left: 2px solid var(--blue);
+          border-radius: 2px;
+        }
+        .link-item a {
+          color: var(--blue);
+          word-break: break-all;
+        }
+      </style>
+
+      <div style="display: flex; flex-direction: column; gap: 8px;">
+      {% for app in applications %}
+        <div class="app-row">
+          <div class="app-header" onclick="toggleDetails(this)">
+            <div class="app-header-left">
+              <span class="app-toggle">▶</span>
+              <div>
+                <div style="font-weight: 600; color: var(--text); font-size: 0.95rem;">{{ app.full_name }}</div>
+                <div style="color: var(--text-muted); font-size: 0.85rem;">{{ app.email }}</div>
+              </div>
+              <div style="flex: 1;">
+                <div style="color: var(--text); font-size: 0.9rem;"><strong>{{ app.job_title }}</strong></div>
+              </div>
+            </div>
+            <div class="app-header-right">
+              <div style="text-align: center;">
+                <div style="font-size: 0.85rem; color: var(--text-muted);">Bid</div>
+                <div style="font-weight: 600; color: var(--primary);">{{ app.connects_spent }}⚡</div>
+              </div>
               {% if app.status == 'accepted' %}
                 <span style="background:#d4edda;color:#155724;padding:4px 8px;border-radius:3px;font-size:0.85rem;font-weight:600;">✓ Accepted</span>
               {% elif app.status == 'rejected' %}
@@ -67,18 +126,36 @@
               {% else %}
                 <span style="background:#fff3cd;color:#856404;padding:4px 8px;border-radius:3px;font-size:0.85rem;">Pending</span>
               {% endif %}
-            </td>
-            <td style="font-size:0.85rem;color:var(--text-muted);">
-              {% if app.applied_at %}
-                {{ app.applied_at.strftime('%Y-%m-%d %H:%M') }}
-              {% else %}
-                —
-              {% endif %}
-            </td>
-          </tr>
-          {% endfor %}
-          </tbody>
-        </table>
+              <div style="font-size: 0.85rem; color: var(--text-muted); min-width: 90px;">
+                {{ app.applied_at.strftime('%Y-%m-%d %H:%M') if app.applied_at else '—' }}
+              </div>
+            </div>
+          </div>
+          
+          <div class="app-details">
+            <div class="detail-field">
+              <div class="detail-label">Cover Letter</div>
+              <div class="detail-value">{{ app.cover_letter if app.cover_letter else '(No cover letter)' }}</div>
+            </div>
+            
+            {% if app.attachment_links %}
+            <div class="detail-field">
+              <div class="detail-label">Supporting Links</div>
+              <div class="links-container">
+                {% set links = app.attachment_links.split('\n') if app.attachment_links else [] %}
+                {% for link in links %}
+                  {% if link.strip() %}
+                    <div class="link-item">
+                      <a href="{{ link.strip() }}" target="_blank">{{ link.strip() }}</a>
+                    </div>
+                  {% endif %}
+                {% endfor %}
+              </div>
+            </div>
+            {% endif %}
+          </div>
+        </div>
+      {% endfor %}
       </div>
       {% else %}
       <div class="card-container" style="text-align:center;padding:40px;">
@@ -89,3 +166,16 @@
   </div>
 </div></div>
 {% endblock %}
+
+{% block scripts %}
+<script>
+function toggleDetails(headerEl) {
+  const detailsEl = headerEl.nextElementSibling;
+  const toggle = headerEl.querySelector('.app-toggle');
+  
+  detailsEl.classList.toggle('open');
+  toggle.textContent = detailsEl.classList.contains('open') ? '▼' : '▶';
+}
+</script>
+{% endblock %}
+
