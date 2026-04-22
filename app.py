@@ -656,6 +656,29 @@ class MySQLStore:
                 cur.execute(f"ALTER TABLE {jobs} ADD COLUMN ai_employer_name VARCHAR(255) NULL;")
             except Exception:
                 pass
+            try:
+                cur.execute(f"ALTER TABLE {jobs} ADD COLUMN slug VARCHAR(255) UNIQUE;")
+            except Exception:
+                pass
+            try:
+                cur.execute(f"ALTER TABLE {jobs} ADD INDEX idx_{p}jobs_slug (slug);")
+            except Exception:
+                pass
+            # ── Populate slugs for existing jobs without them ──────────────────────────────────────
+            try:
+                cur.execute(f"SELECT id, title, slug FROM {jobs} WHERE slug IS NULL OR slug='' LIMIT 10000")
+                jobs_to_update = cur.fetchall()
+                if jobs_to_update:
+                    for job in jobs_to_update:
+                        job_id = job[0]
+                        title = job[1] or "job"
+                        slug = _generate_job_slug(title, job_id)
+                        try:
+                            cur.execute(f"UPDATE {jobs} SET slug=%s WHERE id=%s", (slug, job_id))
+                        except Exception as slug_err:
+                            LOG.debug(f"Slug update failed for job {job_id}: {slug_err}")
+            except Exception as e:
+                LOG.debug(f"Job slug migration: {e}")
             # ── Email Notification Preferences ──────────────────────────────────────
             try:
                 cur.execute(f"ALTER TABLE {users} ADD COLUMN email_job_notifications BOOLEAN DEFAULT TRUE;")
@@ -1563,6 +1586,10 @@ def _generate_ai_jobs(store: MySQLStore) -> int:
                 if not job_id:
                     LOG.warning("Failed to insert job")
                     continue
+                
+                # Generate and set slug for the job (includes job_id for uniqueness)
+                slug = _generate_job_slug(title, job_id)
+                store.execute(f"UPDATE {store.t('jobs')} SET slug=%s WHERE id=%s", (slug, job_id))
                 
                 # Insert robot winner record
                 awarded_at = datetime.utcnow() + timedelta(hours=random.randint(24, 36))
@@ -3039,6 +3066,26 @@ def _generate_organization_schema() -> str:
     return json.dumps(schema)
 
 
+def _generate_job_slug(title: str, job_id: int | None = None) -> str:
+    """Generate URL-friendly slug from job title."""
+    # Convert to lowercase and replace spaces with hyphens
+    slug = title.lower().strip()
+    # Remove special characters, keeping only alphanumeric and hyphens
+    slug = re.sub(r'[^a-z0-9\s-]', '', slug)
+    # Replace multiple spaces with single hyphen
+    slug = re.sub(r'\s+', '-', slug)
+    # Remove leading/trailing hyphens
+    slug = slug.strip('-')
+    # Truncate to 80 chars to keep URLs reasonable
+    slug = slug[:80]
+    # Remove trailing hyphens again after truncation
+    slug = slug.rstrip('-')
+    # If we have a job_id, append it for uniqueness (handles similar titles)
+    if job_id:
+        slug = f"{slug}-{job_id}"
+    return slug or f"job-{job_id}" if job_id else "job"
+
+
 @app.route("/")
 def index():
     if session.get("user_id"):
@@ -3747,16 +3794,35 @@ def _get_worker_stats(worker_id: int | None) -> dict:
         }
 
 
-@app.route("/worker/jobs/<int:job_id>")
+@app.route("/worker/jobs/<slug_or_id>")
 @worker_required
 @profile_required
-def worker_job_detail(job_id):
+def worker_job_detail(slug_or_id):
     uid = session["user_id"]
-    job = STORE.query_one(
-        f"SELECT j.*, rw.robot_name, rw.connects_shown, rw.completed_jobs, rw.success_rate, rw.selection_style, rw.awarded_at FROM {STORE.t('jobs')} j "
-        f"LEFT JOIN {STORE.t('robot_winners')} rw ON rw.job_id=j.id WHERE j.id=%s", (job_id,))
+    # Try to parse as job_id (numeric) first, then as slug
+    job_id = None
+    try:
+        job_id = int(slug_or_id)
+    except ValueError:
+        pass
+    
+    if job_id:
+        # Query by numeric ID
+        job = STORE.query_one(
+            f"SELECT j.*, rw.robot_name, rw.connects_shown, rw.completed_jobs, rw.success_rate, rw.selection_style, rw.awarded_at FROM {STORE.t('jobs')} j "
+            f"LEFT JOIN {STORE.t('robot_winners')} rw ON rw.job_id=j.id WHERE j.id=%s", (job_id,))
+    else:
+        # Query by slug
+        job = STORE.query_one(
+            f"SELECT j.*, rw.robot_name, rw.connects_shown, rw.completed_jobs, rw.success_rate, rw.selection_style, rw.awarded_at FROM {STORE.t('jobs')} j "
+            f"LEFT JOIN {STORE.t('robot_winners')} rw ON rw.job_id=j.id WHERE j.slug=%s", (slug_or_id,))
+    
     if not job:
         flash("Job not found.", "error"); return redirect(url_for("worker_jobs"))
+    
+    # Redirect numeric IDs to slug-based URLs for SEO
+    if job_id and job.get("slug"):
+        return redirect(url_for("worker_job_detail", slug_or_id=job["slug"]))
         
     # Process simulated applicant logic for job detail
     interview_names: list[str] = []
@@ -3843,23 +3909,34 @@ def worker_job_detail(job_id):
                            job_structured_data=job_structured_data)
 
 
-@app.route("/worker/jobs/<int:job_id>/apply", methods=["POST"])
+@app.route("/worker/jobs/<slug_or_id>/apply", methods=["POST"])
 @worker_required
 @profile_required
-def worker_apply(job_id):
+def worker_apply(slug_or_id):
+    # Convert slug to job_id if needed
+    job_id = None
+    try:
+        job_id = int(slug_or_id)
+    except ValueError:
+        job = STORE.query_one(f"SELECT id FROM {STORE.t('jobs')} WHERE slug=%s", (slug_or_id,))
+        if job:
+            job_id = job["id"]
+    
+    if not job_id:
+        flash("Job not found.", "error"); return redirect(url_for("worker_jobs"))
     if not verify_csrf():
-        flash("Invalid request.", "error"); return redirect(url_for("worker_job_detail", job_id=job_id))
+        flash("Invalid request.", "error"); return redirect(url_for("worker_job_detail", slug_or_id=slug_or_id))
     uid = session["user_id"]
     job = STORE.query_one(f"SELECT j.*, rw.awarded_at FROM {STORE.t('jobs')} j LEFT JOIN {STORE.t('robot_winners')} rw ON rw.job_id=j.id WHERE j.id=%s AND status='open'", (job_id,))
     if not job:
         flash("Job not available.", "error"); return redirect(url_for("worker_jobs"))
     if job.get("is_robot") and job.get("awarded_at") and datetime.utcnow() >= job["awarded_at"]:
-        flash("This robot job is already in shortlist/interview finalization.", "warning"); return redirect(url_for("worker_job_detail", job_id=job_id))
+        flash("This robot job is already in shortlist/interview finalization.", "warning"); return redirect(url_for("worker_job_detail", slug_or_id=job.get("slug") or job_id))
         
     already = STORE.query_one(
         f"SELECT id FROM {STORE.t('applications')} WHERE user_id=%s AND job_id=%s", (uid, job_id))
     if already:
-        flash("You've already applied for this job.", "warning"); return redirect(url_for("worker_job_detail", job_id=job_id))
+        flash("You've already applied for this job.", "warning"); return redirect(url_for("worker_job_detail", slug_or_id=job.get("slug") or job_id))
     bid_connects = request.form.get("bid_connects", type=int)
     if not bid_connects or bid_connects < job["connects_required"]:
         bid_connects = job["connects_required"]
@@ -3877,7 +3954,7 @@ def worker_apply(job_id):
         normalized = _normalize_external_link(raw_link)
         if not normalized:
             flash("One of the supporting links is invalid. Use a full website URL.", "error")
-            return redirect(url_for("worker_job_detail", job_id=job_id))
+            return redirect(url_for("worker_job_detail", slug_or_id=job.get("slug") or job_id))
         if normalized not in attachment_links:
             attachment_links.append(normalized)
 
@@ -3908,7 +3985,7 @@ def worker_apply(job_id):
         )
         audit_log(uid, "CONNECTS_ROLLBACK", "application", None, details=f"Job ID: {job_id}, Amount: {connects_needed}")
         flash("Failed to submit application. Please try again.", "error")
-        return redirect(url_for("worker_job_detail", job_id=job_id))
+        return redirect(url_for("worker_job_detail", slug_or_id=job.get("slug") or job_id))
     
     # If it's a robot job, systematically outbid the applicant
     if job.get("is_robot"):
@@ -4749,6 +4826,12 @@ def employer_post_job():
                 f"VALUES (%s,%s,%s,%s,%s,%s,%s,%s,0,'open')",
                 (uid, title, desc, category, jtype, budget, duration, conn_req),
             )
+        
+        # Generate and set slug for the job (includes job_id for uniqueness)
+        if job_id:
+            slug = _generate_job_slug(title, job_id)
+            STORE.execute(f"UPDATE {STORE.t('jobs')} SET slug=%s WHERE id=%s", (slug, job_id))
+        
         flash("Job posted successfully!", "success")
         return redirect(url_for("employer_applicants", job_id=job_id))
     
@@ -6014,6 +6097,11 @@ def _credit_connects_or_subscription(reference: str) -> tuple[bool, int | None]:
                     (sub["employer_id"], title, final_desc, category, jtype, budget, duration, conn_req),
                 )
                 
+                # Generate and set slug for the job (includes job_id for uniqueness)
+                if job_id:
+                    slug = _generate_job_slug(title, job_id)
+                    STORE.execute(f"UPDATE {STORE.t('jobs')} SET slug=%s WHERE id=%s", (slug, job_id))
+                
                 # Mark subscription as confirmed (PAYG purchase complete)
                 STORE.execute(
                     f"UPDATE {STORE.t('subscriptions')} SET status='confirmed', expires_at=NOW(), confirmed_at=NOW() WHERE id=%s",
@@ -6762,6 +6850,12 @@ def admin_create_robot_job():
             f"duration, connects_required, is_robot, ai_employer_name, status) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,1,%s,'open')",
             (None, title, desc, category, jtype, budget, duration, connects, ai_employer_name),
         )
+        
+        # Generate and set slug for the job (includes job_id for uniqueness)
+        if job_id:
+            slug = _generate_job_slug(title, job_id)
+            STORE.execute(f"UPDATE {STORE.t('jobs')} SET slug=%s WHERE id=%s", (slug, job_id))
+        
         awarded_at = datetime.utcnow() + timedelta(hours=random.randint(24, 36))
         STORE.execute(
             f"INSERT INTO {STORE.t('robot_winners')} "
@@ -7049,7 +7143,6 @@ def sitemap_xml():
     sitemaps = [
         "static",
         "jobs",
-        "workers",
     ]
     
     for sitemap_type in sitemaps:
@@ -7097,7 +7190,7 @@ def sitemap_by_type(sitemap_type):
         # ALL ACTIVE JOBS - individual job listings are high-value SEO
         try:
             jobs = STORE.query_all(
-                f"SELECT id, created_at, updated_at, status FROM {STORE.t('jobs')} "
+                f"SELECT id, slug, created_at, updated_at, status FROM {STORE.t('jobs')} "
                 f"WHERE status='open' AND is_robot=0 "
                 f"ORDER BY updated_at DESC LIMIT 50000",
                 ()
@@ -7108,8 +7201,10 @@ def sitemap_by_type(sitemap_type):
                     lastmod = job.get("updated_at") or job.get("created_at")
                     lastmod_str = lastmod.isoformat() + "Z" if isinstance(lastmod, datetime) else datetime.utcnow().isoformat() + "Z"
                     
+                    # Use slug if available, otherwise ID
+                    slug_or_id = job.get("slug") or job["id"]
                     urls.append({
-                        "loc": url_for("worker_job_detail", job_id=job["id"], _external=True, _scheme='https'),
+                        "loc": url_for("worker_job_detail", slug_or_id=slug_or_id, _external=True, _scheme='https'),
                         "priority": 0.85,  # High priority for specific job listings
                         "changefreq": "weekly",  # Individual jobs don't change daily
                         "lastmod": lastmod_str,
@@ -7119,34 +7214,12 @@ def sitemap_by_type(sitemap_type):
         except Exception as e:
             LOG.debug(f"Sitemap jobs query error: {e}")
     
-    elif sitemap_type == "workers":
-        # VERIFIED WORKER PROFILES - user-generated content = SEO gold
-        try:
-            workers = STORE.query_all(
-                f"SELECT id, updated_at FROM {STORE.t('users')} "
-                f"WHERE role='worker' AND is_verified=1 "
-                f"ORDER BY updated_at DESC LIMIT 50000",
-                ()
-            )
-            for worker in workers:
-                try:
-                    lastmod = worker.get("updated_at")
-                    lastmod_str = lastmod.isoformat() + "Z" if isinstance(lastmod, datetime) else datetime.utcnow().isoformat() + "Z"
-                    
-                    urls.append({
-                        "loc": url_for("worker_profile", worker_id=worker["id"], _external=True, _scheme='https'),
-                        "priority": 0.7,  # Profiles are important but less than specific job listings
-                        "changefreq": "monthly",  # Worker profiles update less frequently
-                        "lastmod": lastmod_str,
-                    })
-                except Exception as e:
-                    LOG.debug(f"Sitemap worker error (ID {worker.get('id')}): {e}")
-        except Exception as e:
-            LOG.debug(f"Sitemap workers query error: {e}")
-    
     # Generate XML for this sitemap
     xml = '<?xml version="1.0" encoding="UTF-8"?>\n'
     xml += '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+    
+    if not urls:
+        LOG.warning(f"Sitemap '{sitemap_type}' has no URLs to include")
     
     for url in urls:
         xml += '  <url>\n'
