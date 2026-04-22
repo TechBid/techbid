@@ -422,6 +422,10 @@ tr:hover td { background: #fafafa; }
 .link-input-row .form-input {
   flex: 1 1 320px;
 }
+/* Add spacing above the "Add link" button */
+#add-application-link {
+  margin-top: 12px;
+}
 
 /* ── Landing Page ───────────────────────────────────────────────────────────── */
 .hero {
