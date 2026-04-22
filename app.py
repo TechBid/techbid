@@ -3920,6 +3920,24 @@ def worker_apply(job_id):
 
     _refresh_session(uid)
     audit_log(uid, "APPLICATION_SUBMITTED", "application", app_id, details=f"Job ID: {job_id}")
+    
+    # Send email notification to applicant
+    user_email = user["email"]
+    job_title = job.get("title", "Unknown Job")
+    email_html = f"""
+    <h2>Application Submitted</h2>
+    <p>Hi {user.get("full_name", "there")},</p>
+    <p>Your application for <strong>{job_title}</strong> has been successfully submitted.</p>
+    <p><strong>Bid Amount:</strong> {connects_needed} connects</p>
+    <p>Please await the employer's response. You can track your applications in your <a href="{request.host_url}worker/dashboard">dashboard</a>.</p>
+    <hr>
+    <p style="color: #666; font-size: 0.9rem;">Need help? <a href="{request.host_url}pages/support">Contact support</a></p>
+    """
+    try:
+        send_email(user_email, f"Application Submitted: {job_title}", email_html)
+    except Exception as e:
+        print(f"Warning: Failed to send application notification email: {e}")
+    
     flash(f"Application submitted! {connects_needed} connects used. Check your dashboard.", "success")
     return redirect(url_for("worker_dashboard"))
 
@@ -7040,7 +7058,7 @@ def sitemap_xml():
     for endpoint, priority, changefreq in static_pages:
         try:
             urls.append({
-                "loc": url_for(endpoint, _external=True),
+                "loc": url_for(endpoint, _external=True, _scheme='https'),
                 "changefreq": changefreq,
                 "priority": priority,
                 "lastmod": datetime.utcnow().isoformat() + "Z",
@@ -7057,7 +7075,7 @@ def sitemap_xml():
         for job in jobs:
             try:
                 urls.append({
-                    "loc": url_for("worker_job_detail", job_id=job["id"], _external=True),
+                    "loc": url_for("worker_job_detail", job_id=job["id"], _external=True, _scheme='https'),
                     "changefreq": "daily",
                     "priority": 0.8,  # High priority for job listings
                     "lastmod": job.get("created_at", datetime.utcnow()).isoformat() + "Z" if isinstance(job.get("created_at"), datetime) else datetime.utcnow().isoformat() + "Z",
@@ -7078,7 +7096,7 @@ def sitemap_xml():
         for worker in workers:
             try:
                 urls.append({
-                    "loc": url_for("worker_profile", worker_id=worker["id"], _external=True),
+                    "loc": url_for("worker_profile", worker_id=worker["id"], _external=True, _scheme='https'),
                     "changefreq": "weekly",
                     "priority": 0.7,  # High priority for worker profiles
                     "lastmod": worker.get("updated_at", datetime.utcnow()).isoformat() + "Z" if isinstance(worker.get("updated_at"), datetime) else datetime.utcnow().isoformat() + "Z",
