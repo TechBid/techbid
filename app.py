@@ -7045,16 +7045,16 @@ def sitemap_xml():
     xml = '<?xml version="1.0" encoding="UTF-8"?>\n'
     xml += '<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
     
-    # Link to sub-sitemaps
+    # Link to sub-sitemaps (just the type names, route adds "sitemap-" prefix and ".xml" suffix)
     sitemaps = [
-        "sitemap-static.xml",
-        "sitemap-jobs.xml",
-        "sitemap-workers.xml",
+        "static",
+        "jobs",
+        "workers",
     ]
     
-    for sitemap in sitemaps:
+    for sitemap_type in sitemaps:
         xml += f'  <sitemap>\n'
-        xml += f'    <loc>{url_for("sitemap_by_type", sitemap_type=sitemap[:-4], _external=True, _scheme="https")}</loc>\n'
+        xml += f'    <loc>{url_for("sitemap_by_type", sitemap_type=sitemap_type, _external=True, _scheme="https")}</loc>\n'
         xml += f'    <lastmod>{datetime.utcnow().isoformat()}Z</lastmod>\n'
         xml += f'  </sitemap>\n'
     
