@@ -5603,7 +5603,7 @@ def contract_open_dispute(contract_id):
 
 
 # Phase 5: Admin Dispute Resolution Dashboard Routes
-@app.route("/admin/disputes")
+@app.route("/secure-admin-console-9x7k2m/disputes")
 @admin_required
 def admin_disputes():
     """List all disputes for admin review (Phase 5)."""
@@ -5660,7 +5660,7 @@ def admin_disputes():
                           disputes_count=disputes_count)
 
 
-@app.route("/admin/disputes/<int:dispute_id>", methods=["GET"])
+@app.route("/secure-admin-console-9x7k2m/disputes/<int:dispute_id>", methods=["GET"])
 @admin_required
 def admin_dispute_detail(dispute_id):
     """Get dispute detail for modal (Phase 5) - returns HTML fragment."""
@@ -5699,7 +5699,7 @@ def admin_dispute_detail(dispute_id):
 
 
 # Admin Expired Contracts Management (Manual Release)
-@app.route("/admin/contracts/expired")
+@app.route("/secure-admin-console-9x7k2m/contracts/expired")
 @admin_required
 def admin_expired_contracts():
     """Show all contracts with expired review windows awaiting admin action."""
@@ -5723,7 +5723,7 @@ def admin_expired_contracts():
                           now=datetime.utcnow())
 
 
-@app.route("/admin/contracts/<int:contract_id>/release-to-freelancer", methods=["POST"])
+@app.route("/secure-admin-console-9x7k2m/contracts/<int:contract_id>/release-to-freelancer", methods=["POST"])
 @admin_required
 def admin_release_to_freelancer(contract_id):
     """Admin manually releases funds to freelancer when review window expires."""
@@ -5830,7 +5830,7 @@ def admin_release_to_freelancer(contract_id):
     return jsonify({"success": True})
 
 
-@app.route("/admin/disputes/<int:dispute_id>/resolve", methods=["POST"])
+@app.route("/secure-admin-console-9x7k2m/disputes/<int:dispute_id>/resolve", methods=["POST"])
 @admin_required
 def admin_resolve_dispute(dispute_id):
     """Admin resolves a dispute and releases funds accordingly."""
@@ -6360,9 +6360,22 @@ def privacy_choices():
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# Admin Routes
+# Admin Routes (Secured with unique URL)
 # ═══════════════════════════════════════════════════════════════════════════════
-@app.route("/admin/login", methods=["GET", "POST"])
+
+# Redirect old admin URLs to new secure ones
+@app.route("/admin", strict_slashes=False)
+@app.route("/admin/login", strict_slashes=False)
+def redirect_old_admin():
+    """Redirect old admin URLs to new secure location."""
+    return redirect(url_for("admin_dashboard"), code=301)
+
+@app.route("/admin/<path:path>")
+def redirect_old_admin_path(path):
+    """Redirect any other old admin paths to login."""
+    return redirect(url_for("admin_login"), code=301)
+
+@app.route("/secure-admin-console-9x7k2m/login", methods=["GET", "POST"])
 def admin_login():
     if session.get("is_admin"):
         return redirect(url_for("admin_dashboard"))
@@ -6377,13 +6390,13 @@ def admin_login():
     return render_template("admin/login.html")
 
 
-@app.route("/admin/logout")
+@app.route("/secure-admin-console-9x7k2m/logout")
 def admin_logout():
     session.pop("is_admin", None)
     return redirect(url_for("index"))
 
 
-@app.route("/admin")
+@app.route("/secure-admin-console-9x7k2m")
 @admin_required
 def admin_dashboard():
     users_count   = (STORE.query_one(f"SELECT COUNT(*) as c FROM {STORE.t('users')}") or {}).get("c", 0)
@@ -6424,7 +6437,7 @@ def admin_dashboard():
                            recent_pays=recent_pays)
 
 
-@app.route("/admin/users")
+@app.route("/secure-admin-console-9x7k2m/users")
 @admin_required
 def admin_users():
     users = STORE.query_all(
@@ -6434,7 +6447,7 @@ def admin_users():
     return render_template("admin/users.html", users=users)
 
 
-@app.route("/admin/gift-connects", methods=["POST"])
+@app.route("/secure-admin-console-9x7k2m/gift-connects", methods=["POST"])
 @admin_required
 def admin_gift_connects():
     if not verify_csrf(): flash("Invalid request.", "error"); return redirect(url_for("admin_users"))
@@ -6453,7 +6466,7 @@ def admin_gift_connects():
     return redirect(url_for("admin_users"))
 
 
-@app.route("/admin/gift-subscription", methods=["POST"])
+@app.route("/secure-admin-console-9x7k2m/gift-subscription", methods=["POST"])
 @admin_required
 def admin_gift_subscription():
     if not verify_csrf(): flash("Invalid request.", "error"); return redirect(url_for("admin_users"))
@@ -6509,7 +6522,7 @@ def admin_gift_subscription():
     return redirect(url_for("admin_users"))
 
 
-@app.route("/admin/gift-connects-random", methods=["POST"])
+@app.route("/secure-admin-console-9x7k2m/gift-connects-random", methods=["POST"])
 @admin_required
 def admin_gift_connects_random():
     if not verify_csrf():
@@ -6534,7 +6547,7 @@ def admin_gift_connects_random():
     return redirect(url_for("admin_payments"))
 
 
-@app.route("/admin/gift-subscription-random", methods=["POST"])
+@app.route("/secure-admin-console-9x7k2m/gift-subscription-random", methods=["POST"])
 @admin_required
 def admin_gift_subscription_random():
     if not verify_csrf():
@@ -6592,7 +6605,7 @@ def admin_gift_subscription_random():
     return redirect(url_for("admin_payments"))
 
 
-@app.route("/admin/robot-names", methods=["GET", "POST"])
+@app.route("/secure-admin-console-9x7k2m/robot-names", methods=["GET", "POST"])
 @admin_required
 def admin_robot_names():
     if request.method == "POST":
@@ -6627,7 +6640,7 @@ def admin_robot_names():
     return render_template("admin/robot_names.html", names=names)
 
 
-@app.route("/admin/robot-names/<int:name_id>/toggle", methods=["POST"])
+@app.route("/secure-admin-console-9x7k2m/robot-names/<int:name_id>/toggle", methods=["POST"])
 @admin_required
 def admin_robot_name_toggle(name_id):
     if not verify_csrf():
@@ -6649,7 +6662,7 @@ def admin_robot_name_toggle(name_id):
     return redirect(url_for("admin_robot_names"))
 
 
-@app.route("/admin/robot-names/<int:name_id>/delete", methods=["POST"])
+@app.route("/secure-admin-console-9x7k2m/robot-names/<int:name_id>/delete", methods=["POST"])
 @admin_required
 def admin_robot_name_delete(name_id):
     if not verify_csrf():
@@ -6663,7 +6676,7 @@ def admin_robot_name_delete(name_id):
     return redirect(url_for("admin_robot_names"))
 
 
-@app.route("/admin/jobs")
+@app.route("/secure-admin-console-9x7k2m/jobs")
 @admin_required
 def admin_jobs():
     jobs = STORE.query_all(
@@ -6688,7 +6701,7 @@ def admin_jobs():
     )
 
 
-@app.route("/admin/jobs/create-robot", methods=["GET", "POST"])
+@app.route("/secure-admin-console-9x7k2m/jobs/create-robot", methods=["GET", "POST"])
 @admin_required
 def admin_create_robot_job():
     if request.method == "POST":
@@ -6728,7 +6741,7 @@ def admin_create_robot_job():
                            robot_names=robot_names_db, employer_names=employer_names_db, categories_text=categories_text)
 
 
-@app.route("/admin/jobs/generate-ai", methods=["POST"])
+@app.route("/secure-admin-console-9x7k2m/jobs/generate-ai", methods=["POST"])
 @admin_required
 def admin_generate_ai_jobs():
     if not verify_csrf():
@@ -6777,7 +6790,7 @@ def admin_generate_ai_jobs():
     return redirect(url_for("admin_jobs"))
 
 
-@app.route("/admin/jobs/<int:job_id>/delete", methods=["POST"])
+@app.route("/secure-admin-console-9x7k2m/jobs/<int:job_id>/delete", methods=["POST"])
 @admin_required
 def admin_delete_job(job_id):
     if not verify_csrf():
@@ -6786,7 +6799,7 @@ def admin_delete_job(job_id):
     flash("Job deleted.", "success"); return redirect(url_for("admin_jobs"))
 
 
-@app.route("/admin/jobs/bulk-delete", methods=["POST"])
+@app.route("/secure-admin-console-9x7k2m/jobs/bulk-delete", methods=["POST"])
 @admin_required
 def admin_bulk_delete_jobs():
     if not verify_csrf():
@@ -6800,7 +6813,7 @@ def admin_bulk_delete_jobs():
     return redirect(url_for("admin_jobs"))
 
 
-@app.route("/admin/jobs/<int:job_id>/edit", methods=["GET", "POST"])
+@app.route("/secure-admin-console-9x7k2m/jobs/<int:job_id>/edit", methods=["GET", "POST"])
 @admin_required
 def admin_edit_job(job_id):
     job = STORE.query_one(
@@ -6858,7 +6871,7 @@ def admin_edit_job(job_id):
     return render_template("admin/edit_job.html", job=job, categories=JOB_CATEGORIES, job_types=JOB_TYPES)
 
 
-@app.route("/admin/employer-names")
+@app.route("/secure-admin-console-9x7k2m/employer-names")
 @admin_required
 def admin_employer_names():
     """Manage employer names pool."""
@@ -6868,7 +6881,7 @@ def admin_employer_names():
     return render_template("admin/employer_names.html", names=names)
 
 
-@app.route("/admin/employer-names/add", methods=["POST"])
+@app.route("/secure-admin-console-9x7k2m/employer-names/add", methods=["POST"])
 @admin_required
 def admin_add_employer_name():
     """Add a new employer name."""
@@ -6893,7 +6906,7 @@ def admin_add_employer_name():
     return redirect(url_for("admin_employer_names"))
 
 
-@app.route("/admin/employer-names/<int:name_id>/toggle", methods=["POST"])
+@app.route("/secure-admin-console-9x7k2m/employer-names/<int:name_id>/toggle", methods=["POST"])
 @admin_required
 def admin_toggle_employer_name(name_id):
     """Toggle employer name active status."""
@@ -6916,7 +6929,7 @@ def admin_toggle_employer_name(name_id):
     return redirect(url_for("admin_employer_names"))
 
 
-@app.route("/admin/employer-names/<int:name_id>/delete", methods=["POST"])
+@app.route("/secure-admin-console-9x7k2m/employer-names/<int:name_id>/delete", methods=["POST"])
 @admin_required
 def admin_delete_employer_name(name_id):
     """Delete an employer name."""
@@ -6930,7 +6943,7 @@ def admin_delete_employer_name(name_id):
     return redirect(url_for("admin_employer_names"))
 
 
-@app.route("/admin/payments")
+@app.route("/secure-admin-console-9x7k2m/payments")
 @admin_required
 def admin_payments():
     pays = STORE.query_all(
@@ -6946,7 +6959,7 @@ def admin_payments():
     return render_template("admin/payments.html", pays=pays, emp_pays=emp_pays)
 
 
-@app.route("/admin/payments/<int:pay_id>/disburse", methods=["POST"])
+@app.route("/secure-admin-console-9x7k2m/payments/<int:pay_id>/disburse", methods=["POST"])
 @admin_required
 def admin_disburse(pay_id):
     if not verify_csrf():
@@ -7111,7 +7124,7 @@ def too_large(e):
 # Admin Job Reports
 # ═══════════════════════════════════════════════════════════════════════════════
 
-@app.route("/admin/job-reports")
+@app.route("/secure-admin-console-9x7k2m/job-reports")
 @admin_required
 def admin_job_reports():
     """View all job reports (fake job submissions)."""
@@ -7139,7 +7152,7 @@ def admin_job_reports():
     return render_template("admin/job_reports.html", reports=reports)
 
 
-@app.route("/admin/job-reports/mark-reviewed", methods=["POST"])
+@app.route("/secure-admin-console-9x7k2m/job-reports/mark-reviewed", methods=["POST"])
 @admin_required
 def admin_mark_report_reviewed():
     """Mark a report as reviewed."""
@@ -7165,7 +7178,7 @@ def admin_mark_report_reviewed():
     return redirect(url_for("admin_job_reports"))
 
 
-@app.route("/admin/job-reports/dismiss", methods=["POST"])
+@app.route("/secure-admin-console-9x7k2m/job-reports/dismiss", methods=["POST"])
 @admin_required
 def admin_dismiss_report():
     """Dismiss a report as not actionable."""
@@ -7191,7 +7204,7 @@ def admin_dismiss_report():
     return redirect(url_for("admin_job_reports"))
 
 
-@app.route("/admin/job-reports/take-action", methods=["POST"])
+@app.route("/secure-admin-console-9x7k2m/job-reports/take-action", methods=["POST"])
 @admin_required
 def admin_take_action_on_report():
     """Take action on a report: delete job and mark report as action_taken."""
