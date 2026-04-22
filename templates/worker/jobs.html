@@ -51,7 +51,7 @@
       <div class="job-card">
         <div class="job-card-header">
           <div class="flex-1">
-            <a href="{{ url_for('worker_job_detail', job_id=job.id) }}" class="job-title">{{ job.title }}</a>
+            <a href="{{ url_for('worker_job_detail', slug_or_id=job.slug or job.id) }}" class="job-title">{{ job.title }}</a>
             <div class="job-meta">
               <span>{{ job.category }}</span>
               <span class="job-badge {{ 'badge-fixed' if job.job_type=='fixed' else 'badge-hourly' if job.job_type=='hourly' else 'badge-daily' }}">
@@ -66,7 +66,7 @@
             {% if job.id in applied_ids %}
             <span class="btn btn-sm" style="background:#f0f0f0;color:var(--text-muted);cursor:default;width:100%;">Applied</span>
             {% else %}
-            <a href="{{ url_for('worker_job_detail', job_id=job.id) }}" class="btn btn-primary btn-sm" style="width:100%;">Apply</a>
+            <a href="{{ url_for('worker_job_detail', slug_or_id=job.slug or job.id) }}" class="btn btn-primary btn-sm" style="width:100%;">Apply</a>
             {% endif %}
           </div>
         </div>

@@ -601,6 +601,7 @@ class MySQLStore:
                     is_robot TINYINT NOT NULL DEFAULT 0,
                     status ENUM('open','closed','filled') NOT NULL DEFAULT 'open',
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                     INDEX idx_{p}jobs_cat (category),
                     INDEX idx_{p}jobs_robot (is_robot),
                     INDEX idx_{p}jobs_status (status)
@@ -662,6 +663,10 @@ class MySQLStore:
                 pass
             try:
                 cur.execute(f"ALTER TABLE {jobs} ADD INDEX idx_{p}jobs_slug (slug);")
+            except Exception:
+                pass
+            try:
+                cur.execute(f"ALTER TABLE {jobs} ADD COLUMN updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP;")
             except Exception:
                 pass
             # ── Populate slugs for existing jobs without them ──────────────────────────────────────
@@ -3474,7 +3479,7 @@ def worker_dashboard():
     _refresh_session(uid)
     user = STORE.query_one(f"SELECT * FROM {STORE.t('users')} WHERE id=%s", (uid,))
     recent_apps = STORE.query_all(
-        f"SELECT a.*, j.title, j.category, j.budget_usd, j.job_type, j.status as job_status, j.is_robot, rw.awarded_at "
+        f"SELECT a.*, j.title, j.category, j.budget_usd, j.job_type, j.status as job_status, j.is_robot, j.slug, rw.awarded_at "
         f"FROM {STORE.t('applications')} a "
         f"JOIN {STORE.t('jobs')} j ON j.id=a.job_id "
         f"LEFT JOIN {STORE.t('robot_winners')} rw ON rw.job_id=j.id "
@@ -4311,7 +4316,7 @@ def worker_profile():
     _refresh_session(uid)  # Ensure session is fresh
     user = STORE.query_one(f"SELECT * FROM {STORE.t('users')} WHERE id=%s", (uid,))
     apps = STORE.query_all(
-        f"SELECT a.*, j.title, j.category FROM {STORE.t('applications')} a "
+        f"SELECT a.*, j.title, j.category, j.slug FROM {STORE.t('applications')} a "
         f"JOIN {STORE.t('jobs')} j ON j.id=a.job_id WHERE a.user_id=%s ORDER BY a.applied_at DESC",
         (uid,),
     )
@@ -7190,15 +7195,15 @@ def sitemap_by_type(sitemap_type):
         # ALL ACTIVE JOBS - individual job listings are high-value SEO
         try:
             jobs = STORE.query_all(
-                f"SELECT id, slug, created_at, updated_at, status FROM {STORE.t('jobs')} "
+                f"SELECT id, slug, created_at, COALESCE(updated_at, created_at) as lastmod_col, status FROM {STORE.t('jobs')} "
                 f"WHERE status='open' AND is_robot=0 "
-                f"ORDER BY updated_at DESC LIMIT 50000",
+                f"ORDER BY created_at DESC LIMIT 50000",
                 ()
             )
             for job in jobs:
                 try:
-                    # Use updated_at if available, otherwise created_at
-                    lastmod = job.get("updated_at") or job.get("created_at")
+                    # Use lastmod_col (which handles both updated_at and created_at)
+                    lastmod = job.get("lastmod_col")
                     lastmod_str = lastmod.isoformat() + "Z" if isinstance(lastmod, datetime) else datetime.utcnow().isoformat() + "Z"
                     
                     # Use slug if available, otherwise ID

@@ -75,7 +75,7 @@
           <tbody>
           {% for a in apps %}
           <tr>
-            <td><a href="{{ url_for('worker_job_detail', job_id=a.job_id) }}">{{ a.title }}</a></td>
+            <td><a href="{{ url_for('worker_job_detail', slug_or_id=a.slug or a.job_id) }}">{{ a.title }}</a></td>
             <td>{{ a.category }}</td>
             <td>{{ a.connects_spent }}</td>
             <td><span class="job-badge {{ 'badge-open' if a.status=='pending' else 'badge-real' if a.status=='accepted' else 'badge-closed' }}">{{ a.status | capitalize }}</span></td>

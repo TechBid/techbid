@@ -2,11 +2,11 @@
 {% block title %}{{ seo_title or job.title ~ " — TechBid" }}{% endblock %}
 {% block description %}{{ seo_description or "Find freelance jobs on TechBid Marketplace." }}{% endblock %}
 {% block keywords %}{{ seo_keywords or "freelance, jobs, hiring" }}{% endblock %}
-{% block canonical %}{{ url_for('worker_job_detail', job_id=job.id, _external=True) }}{% endblock %}
+{% block canonical %}{{ url_for('worker_job_detail', slug_or_id=job.slug or job.id, _external=True) }}{% endblock %}
 {% block og_title %}{{ seo_title or job.title }}{% endblock %}
 {% block og_description %}{{ seo_description }}{% endblock %}
 {% block og_type %}article{% endblock %}
-{% block og_url %}{{ url_for('worker_job_detail', job_id=job.id, _external=True) }}{% endblock %}
+{% block og_url %}{{ url_for('worker_job_detail', slug_or_id=job.slug or job.id, _external=True) }}{% endblock %}
 {% block structured_data %}<script type="application/ld+json">{{ job_structured_data|safe }}</script>{% endblock %}
 {% block body %}
 <div class="page-wrap">
@@ -186,7 +186,7 @@
       You need {{ job.connects_required }} connects to apply. <a href="{{ url_for('worker_buy_connects') }}">Buy connects →</a>
     </div>
     {% else %}
-    <form method="POST" action="{{ url_for('worker_apply', job_id=job.id) }}">
+    <form method="POST" action="{{ url_for('worker_apply', slug_or_id=job.slug or job.id) }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div class="form-group">
         <label class="form-label" for="bid_connects">Bid Connects</label>
