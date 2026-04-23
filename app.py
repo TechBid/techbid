@@ -4155,8 +4155,12 @@ def worker_job_detail(slug_or_id):
     if not job:
         flash("Job not found.", "error"); return redirect(url_for("worker_jobs"))
     
+    # Ensure job_id is set from job object (in case we looked up by slug)
+    if not job_id:
+        job_id = job.get("id")
+    
     # Redirect numeric IDs to slug-based URLs for SEO
-    if job_id and job.get("slug"):
+    if not (slug_or_id.isdigit() if isinstance(slug_or_id, str) else False) and job.get("slug"):
         return redirect(url_for("worker_job_detail", slug_or_id=job["slug"]))
         
     # Process simulated applicant logic for job detail
