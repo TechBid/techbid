@@ -123,7 +123,10 @@
     {% endif %}
 
     {% if already_applied %}
-    <div class="alert alert-info" style="margin-top:20px;">You have already applied for this job.</div>
+    <div class="alert alert-info" style="margin-top:20px;">
+      <strong>✓ Application Submitted</strong><br>
+      You've already applied for this job. Check your dashboard to track your application status.
+    </div>
     
     {% if job.robot_name and job.is_robot and job.awarded_at and now >= job.awarded_at %}
     <hr class="divider">
