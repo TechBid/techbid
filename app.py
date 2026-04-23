@@ -252,6 +252,14 @@ class Settings:
     gemini_model:   str = field(default_factory=lambda: _env("GEMINI_MODEL", "gemini-2.5-flash"))
     ai_jobs_per_run: int = field(default_factory=lambda: _env_int("AI_JOBS_PER_RUN", 10))
 
+    groq_api_keys: list = field(default_factory=lambda: [
+        _env("GROQ_API_KEY1", ""),
+        _env("GROQ_API_KEY2", ""),
+        _env("GROQ_API_KEY3", ""),
+    ])
+    groq_model:    str = field(default_factory=lambda: _env("GROQ_MODEL", "llama-3.1-8b-instant"))
+    groq_enabled:  bool = field(default_factory=lambda: bool(_env("GROQ_API_KEY1")))
+
     github_token:  str = field(default_factory=lambda: _env("GITHUB_TOKEN"))
     github_repo:   str = field(default_factory=lambda: _env("GITHUB_REPO"))
     github_branch: str = field(default_factory=lambda: _env("GITHUB_BRANCH", "main"))
@@ -292,6 +300,101 @@ class Settings:
 
 
 SETTINGS = Settings()
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Groq Client Manager (Rate Limiting & Key Rotation)
+# ═══════════════════════════════════════════════════════════════════════════════
+class GroqClientManager:
+    """Manages 3 Groq API keys with round-robin distribution and rate limiting.
+    
+    Rate Limits per key:
+    - 30 requests/minute
+    - 14.4K requests/day (12 per hour)
+    - 6K tokens/minute
+    - 500K tokens/day
+    """
+    def __init__(self, api_keys: list[str]):
+        self.api_keys = [k for k in api_keys if k]  # Filter out empty keys
+        self.current_key_index = 0
+        self.usage = {}
+        self._reset_usage()
+        self._lock = threading.Lock()
+    
+    def _reset_usage(self):
+        """Initialize usage tracking for all keys."""
+        now = time.time()
+        for i in range(len(self.api_keys)):
+            self.usage[i] = {
+                'requests_today': 0,
+                'tokens_today': 0,
+                'requests_this_minute': 0,
+                'last_reset_day': now,
+                'last_reset_minute': now,
+            }
+    
+    def _check_reset(self):
+        """Reset daily/minute counters if needed."""
+        now = time.time()
+        for i in self.usage:
+            # Reset daily counter every 24 hours
+            if now - self.usage[i]['last_reset_day'] >= 86400:
+                self.usage[i]['requests_today'] = 0
+                self.usage[i]['tokens_today'] = 0
+                self.usage[i]['last_reset_day'] = now
+            # Reset minute counter every 60 seconds
+            if now - self.usage[i]['last_reset_minute'] >= 60:
+                self.usage[i]['requests_this_minute'] = 0
+                self.usage[i]['last_reset_minute'] = now
+    
+    def get_next_available_key(self) -> tuple[str | None, int]:
+        """Get next available API key index with round-robin and rate limit checking.
+        
+        Returns: (api_key, key_index) or (None, -1) if all keys exhausted
+        """
+        with self._lock:
+            self._check_reset()
+            
+            # Try up to 3 times (once per key)
+            for _ in range(len(self.api_keys)):
+                idx = self.current_key_index % len(self.api_keys)
+                key = self.api_keys[idx]
+                
+                # Check if this key is available
+                if (self.usage[idx]['requests_today'] < 14 and  # Conservative: max 14/day per key
+                    self.usage[idx]['requests_this_minute'] < 2):  # Max 2 per minute per key
+                    self.current_key_index = (idx + 1) % len(self.api_keys)
+                    return (key, idx)
+                
+                # Try next key
+                self.current_key_index = (idx + 1) % len(self.api_keys)
+            
+            # All keys exhausted
+            return (None, -1)
+    
+    def mark_request(self, key_index: int, tokens_used: int = 0):
+        """Mark a successful request for rate limit tracking."""
+        with self._lock:
+            if key_index in self.usage:
+                self.usage[key_index]['requests_today'] += 1
+                self.usage[key_index]['requests_this_minute'] += 1
+                self.usage[key_index]['tokens_today'] += tokens_used
+    
+    def get_status(self) -> dict:
+        """Get current usage status for all keys."""
+        with self._lock:
+            self._check_reset()
+            return {
+                f'key_{i}': {
+                    'requests_today': self.usage[i]['requests_today'],
+                    'tokens_today': self.usage[i]['tokens_today'],
+                    'requests_this_minute': self.usage[i]['requests_this_minute'],
+                }
+                for i in range(len(self.api_keys))
+            }
+
+
+GROQ_MANAGER = GroqClientManager(SETTINGS.groq_api_keys) if SETTINGS.groq_enabled else None
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -1493,33 +1596,61 @@ def _get_active_employer_names(store: MySQLStore) -> list[str]:
     return _AI_EMPLOYER_NAMES  # Fallback to hardcoded
 
 def _generate_ai_jobs(store: MySQLStore) -> int:
-    """Generate AI-powered job postings. Simple, direct, free-tier safe."""
-    if not SETTINGS.gemini_api_key:
-        LOG.warning("AI job generator: GEMINI_API_KEY not set.")
+    """Generate AI-powered job postings using hybrid Groq + Gemini approach.
+    
+    Strategy:
+    - Use Groq Llama 3.1 8B as primary (faster, no rate limits)
+    - Fall back to Gemini if Groq unavailable
+    - Groq has 3 keys for load distribution
+    """
+    # Try Groq first if available
+    if SETTINGS.groq_enabled and GROQ_MANAGER and GROQ_MANAGER.api_keys:
+        result = _generate_ai_jobs_groq(store)
+        if result > 0:
+            return result
+    
+    # Fall back to Gemini
+    if SETTINGS.gemini_api_key:
+        return _generate_ai_jobs_gemini(store)
+    
+    LOG.warning("AI job generator: No API keys configured (Groq or Gemini)")
+    return 0
+
+
+def _generate_ai_jobs_groq(store: MySQLStore) -> int:
+    """Generate AI jobs using Groq API (faster, more reliable for bulk generation)."""
+    try:
+        from groq import Groq
+    except ImportError:
+        LOG.warning("Groq library not installed. Install with: pip install groq")
+        return 0
+    
+    # Get next available Groq API key
+    api_key, key_index = GROQ_MANAGER.get_next_available_key()
+    if not api_key:
+        LOG.warning("Groq rate limit reached for all keys. Waiting for reset.")
         return 0
     
     try:
-        import google.generativeai as genai
-        genai.configure(api_key=SETTINGS.gemini_api_key)
-        model = genai.GenerativeModel(SETTINGS.gemini_model)
-        
-        import random
+        client = Groq(api_key=api_key)
+        model = SETTINGS.groq_model
         
         # FREE TIER SAFETY CHECK: Limit total AI jobs created in the last 24h.
-        daily_limit = max(1, min(SETTINGS.ai_jobs_per_run, 10))
+        daily_limit = max(1, min(SETTINGS.ai_jobs_per_run, 12))  # Groq: more aggressive (12/day vs 10)
         today_count = store.query_one(
             f"SELECT COUNT(*) as cnt FROM {store.t('jobs')} WHERE is_robot=1 AND created_at > DATE_SUB(NOW(), INTERVAL 24 HOUR)",
             ()
         )["cnt"]
         
         if today_count >= daily_limit:
-            LOG.warning("⚠️ Daily generation limit reached (%d/day). Skipping to protect free tier quota.", daily_limit)
+            LOG.warning("⚠️ Daily generation limit reached (%d/day). Skipping to protect rate limits.", daily_limit)
             return 0
         
         category = random.choice(JOB_CATEGORIES)
         count = 0
         
-        LOG.info("AI job generation started for category: %s (%d jobs today)", category, today_count)
+        LOG.info("Groq AI job generation started for category: %s (Key: %d, %d jobs today)", 
+                 category, key_index + 1, today_count)
         
         prompt = (
             f"Generate exactly 1 professional freelance job posting for the '{category}' category.\n\n"
@@ -1547,7 +1678,185 @@ def _generate_ai_jobs(store: MySQLStore) -> int:
             "Output valid JSON ONLY. No extra text."
         )
         
-        # Simple direct API call - no retries
+        # Call Groq API
+        response = client.chat.completions.create(
+            model=model,
+            messages=[
+                {"role": "system", "content": "You are a professional freelance job posting generator. Generate realistic, detailed job postings."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.7,
+            max_tokens=1000,
+        )
+        
+        raw = response.choices[0].message.content.strip() if response.choices else ""
+        tokens_used = response.usage.completion_tokens + response.usage.prompt_tokens if response.usage else 0
+        
+        if not raw:
+            LOG.warning("Empty response from Groq API")
+            return 0
+        
+        # Clean up JSON
+        raw = raw.strip("```json").strip("```").strip()
+        
+        try:
+            items = json.loads(raw)
+            if not isinstance(items, list):
+                items = [items]
+        except json.JSONDecodeError as e:
+            LOG.error("Invalid JSON from Groq: %s... (first 200 chars)", raw[:200])
+            return 0
+        
+        # Process each job
+        for item in items:
+            try:
+                title = str(item.get("title", "")).strip()[:255]
+                description = _normalize_ai_job_description(str(item.get("description", "")))
+                job_type = str(item.get("job_type", "fixed")).lower().strip()
+                raw_budget = item.get("budget_usd", 0)
+                duration = str(item.get("duration", "1 month")).strip()[:80]
+                suggested_name = str(item.get("robot_winner_name", "")).strip()[:80]
+                robot_name = suggested_name or _pick_robot_name(store)
+                
+                # Validation
+                if not title or not description:
+                    continue
+                if job_type not in JOB_TYPES:
+                    job_type = "fixed"
+                budget_ranges = {
+                    "hourly": (80.0, 1500.0),
+                    "daily": (120.0, 2500.0),
+                    "fixed": (200.0, 5000.0),
+                }
+                min_budget, max_budget = budget_ranges.get(job_type, (200.0, 5000.0))
+                try:
+                    base_budget = float(raw_budget)
+                except (TypeError, ValueError):
+                    base_budget = 0.0
+                # Keep AI suggestions but apply randomized market-like variation
+                if base_budget < min_budget or base_budget > max_budget:
+                    base_budget = random.uniform(min_budget, max_budget)
+                jitter = random.uniform(0.72, 1.33)
+                budget = round(min(max_budget, max(min_budget, base_budget * jitter)), 2)
+                
+                connects_req = random.randint(10, 40)
+                winner_conn, winner_completed_jobs, winner_success_rate, winner_style = _build_robot_winner_profile()
+                ai_employer_name = _pick_employer_name(store)
+                
+                # Insert job with randomized AI employer name
+                job_id = store.execute(
+                    f"INSERT INTO {store.t('jobs')} "
+                    "(employer_id, title, description, category, job_type, budget_usd, duration, connects_required, is_robot, ai_employer_name, status) "
+                    "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,1,%s,'open')",
+                    (None, title, description, category, job_type, budget, duration, connects_req, ai_employer_name),
+                )
+                
+                if not job_id:
+                    LOG.warning("Failed to insert job from Groq")
+                    continue
+                
+                # Generate and set slug for the job
+                slug = _generate_job_slug(title, job_id)
+                store.execute(f"UPDATE {store.t('jobs')} SET slug=%s WHERE id=%s", (slug, job_id))
+                
+                # Insert robot winner record
+                awarded_at = datetime.utcnow() + timedelta(hours=random.randint(24, 36))
+                store.execute(
+                    f"INSERT INTO {store.t('robot_winners')} "
+                    "(job_id, robot_name, connects_shown, completed_jobs, success_rate, selection_style, awarded_at) "
+                    "VALUES (%s,%s,%s,%s,%s,%s,%s)",
+                    (job_id, robot_name, winner_conn, winner_completed_jobs, winner_success_rate, winner_style, awarded_at),
+                )
+                
+                # Notify matching workers asynchronously
+                budget_display = f"${budget:,.2f}" if budget else "Negotiable"
+                posted_time = "Just now"
+                try:
+                    notify_thread = Thread(
+                        target=_notify_matching_workers,
+                        args=(job_id, title, description, category, budget_display, posted_time),
+                        daemon=True
+                    )
+                    notify_thread.start()
+                except Exception as notify_err:
+                    LOG.warning(f"Failed to start notification thread for Groq AI job: {notify_err}")
+                
+                count += 1
+                LOG.info("✓ Created Groq AI job #%d: '%s' (ID: %d, Key: %d)", 
+                        count, title[:50], job_id, key_index + 1)
+                
+            except (ValueError, KeyError, TypeError) as item_err:
+                LOG.debug("Skipping malformed job item from Groq: %s", item_err)
+                continue
+        
+        # Track usage for rate limiting
+        GROQ_MANAGER.mark_request(key_index, tokens_used)
+        
+        if count > 0:
+            LOG.info("✓ Groq AI jobs created successfully: %d jobs (Key: %d)", count, key_index + 1)
+        else:
+            LOG.warning("No jobs created from Groq response")
+        return count
+        
+    except Exception as exc:
+        LOG.error("✗ Groq AI job generation failed: %s", exc)
+        return 0
+
+
+def _generate_ai_jobs_gemini(store: MySQLStore) -> int:
+    """Generate AI-powered job postings using Gemini (fallback or primary)."""
+    if not SETTINGS.gemini_api_key:
+        LOG.warning("AI job generator: GEMINI_API_KEY not set.")
+        return 0
+    
+    try:
+        import google.generativeai as genai
+        genai.configure(api_key=SETTINGS.gemini_api_key)
+        model = genai.GenerativeModel(SETTINGS.gemini_model)
+        
+        # FREE TIER SAFETY CHECK: Limit total AI jobs created in the last 24h.
+        daily_limit = max(1, min(SETTINGS.ai_jobs_per_run, 10))
+        today_count = store.query_one(
+            f"SELECT COUNT(*) as cnt FROM {store.t('jobs')} WHERE is_robot=1 AND created_at > DATE_SUB(NOW(), INTERVAL 24 HOUR)",
+            ()
+        )["cnt"]
+        
+        if today_count >= daily_limit:
+            LOG.warning("⚠️ Daily generation limit reached (%d/day). Skipping to protect free tier quota.", daily_limit)
+            return 0
+        
+        category = random.choice(JOB_CATEGORIES)
+        count = 0
+        
+        LOG.info("Gemini AI job generation started for category: %s (%d jobs today)", category, today_count)
+        
+        prompt = (
+            f"Generate exactly 1 professional freelance job posting for the '{category}' category.\n\n"
+            "Return ONLY a JSON array (no markdown, no explanation). Each job object must have:\n"
+            '{"title": "...", "description": "...", "job_type": "hourly|daily|fixed", "budget_usd": <number>, "duration": "...", "robot_winner_name": "FirstName L."}\n\n'
+            "- description: Create a detailed, well-structured job posting (200-350 words, max 400). Use these sections:\n"
+            "  Overview:\n"
+            "  - Clear 1-2 sentence project summary\n"
+            "  Project Scope:\n"
+            "  - 2-3 key deliverables\n"
+            "  Responsibilities:\n"
+            "  - 3-4 main tasks or areas\n"
+            "  Requirements:\n"
+            "  - 3-4 required skills/experience\n"
+            "  Key Features (if applicable):\n"
+            "  - 2-3 What should be included\n"
+            "  Nice to Have:\n"
+            "  - 1-2 bonus requirements\n"
+            "- Use bullet points with clear, specific wording\n"
+            "- Ensure description is professional and compelling\n"
+            "- budget_usd: Between 200 and 5000\n"
+            "- job_type: One of hourly, daily, fixed\n"
+            "- duration: Realistic timeline like '3 weeks', '2 months', '1 month'\n"
+            "- robot_winner_name: Like 'Aisha M.' or 'Kenji S.'\n\n"
+            "Output valid JSON ONLY. No extra text."
+        )
+        
+        # Simple direct API call
         resp = model.generate_content(prompt)
         raw = resp.text.strip() if resp.text else ""
         
@@ -1592,7 +1901,6 @@ def _generate_ai_jobs(store: MySQLStore) -> int:
                     base_budget = float(raw_budget)
                 except (TypeError, ValueError):
                     base_budget = 0.0
-                # Keep AI suggestions but apply randomized market-like variation every run.
                 if base_budget < min_budget or base_budget > max_budget:
                     base_budget = random.uniform(min_budget, max_budget)
                 jitter = random.uniform(0.72, 1.33)
@@ -1642,20 +1950,20 @@ def _generate_ai_jobs(store: MySQLStore) -> int:
                     LOG.warning(f"Failed to start notification thread for AI job: {notify_err}")
                 
                 count += 1
-                LOG.info("✓ Created AI job #%d: '%s' (ID: %d)", count, title[:50], job_id)
+                LOG.info("✓ Created Gemini AI job #%d: '%s' (ID: %d)", count, title[:50], job_id)
                 
             except (ValueError, KeyError, TypeError) as item_err:
                 LOG.debug("Skipping malformed job item: %s", item_err)
                 continue
         
         if count > 0:
-            LOG.info("✓ AI jobs created successfully: %d jobs", count)
+            LOG.info("✓ Gemini AI jobs created successfully: %d jobs", count)
         else:
             LOG.warning("No jobs created from Gemini response")
         return count
         
     except Exception as exc:
-        LOG.error("✗ AI job generation failed: %s", exc)
+        LOG.error("✗ Gemini AI job generation failed: %s", exc)
         return 0
 
 
