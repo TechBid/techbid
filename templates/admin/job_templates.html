@@ -19,7 +19,7 @@
         <p>Create reusable job templates and generate AI jobs instantly.</p>
       </div>
 
-      <button class="btn btn-primary" style="margin-bottom:20px;" onclick="document.getElementById('add-template-modal').style.display='flex'">
+      <button class="btn btn-primary" style="margin-bottom:20px;" onclick="openAddModal()">
         + Add Template
       </button>
 
@@ -27,7 +27,7 @@
   <div id="add-template-modal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:1000;align-items:center;justify-content:center;">
     <div style="background:var(--surface);padding:24px;border-radius:8px;max-width:600px;width:90%;max-height:90vh;overflow-y:auto;">
       <h2 style="margin-top:0;">Add Job Template</h2>
-      <form method="POST" action="{{ url_for('admin_add_job_template') }}">
+      <form method="POST" action="{{ url_for('admin_add_job_template') }}" id="add-form">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         
         <div class="form-group">
@@ -73,7 +73,7 @@
         </div>
 
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:24px;">
-          <button type="button" class="btn" onclick="document.getElementById('add-template-modal').style.display='none'" style="background:#e0e0e0;">Cancel</button>
+          <button type="button" class="btn" onclick="closeAddModal()" style="background:#e0e0e0;">Cancel</button>
           <button type="submit" class="btn btn-primary">Save Template</button>
         </div>
       </form>
@@ -130,7 +130,7 @@
         </div>
 
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:24px;">
-          <button type="button" class="btn" onclick="document.getElementById('edit-template-modal').style.display='none'" style="background:#e0e0e0;">Cancel</button>
+          <button type="button" class="btn" onclick="closeEditModal()" style="background:#e0e0e0;">Cancel</button>
           <button type="submit" class="btn btn-primary">Save Changes</button>
         </div>
       </form>
@@ -243,21 +243,131 @@
 </style>
 
 <script>
+  // Modal helper functions
+  function openAddModal() {
+    const modal = document.getElementById('add-template-modal');
+    if (modal) {
+      modal.style.display = 'flex';
+      modal.scrollTop = 0;
+      // Reset form
+      const form = document.getElementById('add-form');
+      if (form) form.reset();
+    }
+  }
+
+  function closeAddModal() {
+    const modal = document.getElementById('add-template-modal');
+    if (modal) {
+      modal.style.display = 'none';
+    }
+  }
+
+  function closeEditModal() {
+    const modal = document.getElementById('edit-template-modal');
+    if (modal) {
+      modal.style.display = 'none';
+    }
+  }
+
   function editTemplate(template) {
-    document.getElementById('edit-title').value = template.title;
-    document.getElementById('edit-category').value = template.category;
-    document.getElementById('edit-job_type').value = template.job_type;
-    document.getElementById('edit-budget_usd').value = template.budget_usd;
-    document.getElementById('edit-duration').value = template.duration || '';
-    document.getElementById('edit-connects_required').value = template.connects_required;
-    document.getElementById('edit-description').value = template.description;
+    // Populate form fields with template data
+    try {
+      document.getElementById('edit-title').value = template.title || '';
+      document.getElementById('edit-category').value = template.category || '';
+      document.getElementById('edit-job_type').value = template.job_type || 'fixed';
+      document.getElementById('edit-budget_usd').value = template.budget_usd || '500';
+      document.getElementById('edit-duration').value = template.duration || '';
+      document.getElementById('edit-connects_required').value = template.connects_required || '20';
+      document.getElementById('edit-description').value = template.description || '';
+    } catch (e) {
+      console.error('Error populating form fields:', e);
+      alert('Error loading template data. Please refresh and try again.');
+      return;
+    }
     
+    // Set form action to edit endpoint
     const form = document.getElementById('edit-form');
+    if (!template.id) {
+      console.error('Template ID is missing');
+      alert('Error: Template ID is missing');
+      return;
+    }
+    
     form.action = `/secure-admin-console-9x7k2m/job-templates/${template.id}/edit`;
     form.method = 'POST';
     
-    document.getElementById('edit-template-modal').style.display = 'flex';
+    // Display the modal
+    const modal = document.getElementById('edit-template-modal');
+    if (modal) {
+      modal.style.display = 'flex';
+      modal.scrollTop = 0;
+    }
   }
+
+  // Handle form submission for edit form
+  document.addEventListener('DOMContentLoaded', function() {
+    const editForm = document.getElementById('edit-form');
+    if (editForm) {
+      editForm.addEventListener('submit', function(e) {
+        // Form will submit normally, but add validation if needed
+        const title = document.getElementById('edit-title').value.trim();
+        const desc = document.getElementById('edit-description').value.trim();
+        const category = document.getElementById('edit-category').value;
+        const jtype = document.getElementById('edit-job_type').value;
+        
+        if (!title || !desc || !category || !jtype) {
+          e.preventDefault();
+          alert('Please fill in all required fields');
+          return false;
+        }
+      });
+    }
+
+    const addForm = document.getElementById('add-form');
+    if (addForm) {
+      addForm.addEventListener('submit', function(e) {
+        // Form will submit normally, but add validation if needed
+        const title = document.querySelector('#add-form input[name="title"]').value.trim();
+        const desc = document.querySelector('#add-form textarea[name="description"]').value.trim();
+        const category = document.querySelector('#add-form select[name="category"]').value;
+        const jtype = document.querySelector('#add-form select[name="job_type"]').value;
+        
+        if (!title || !desc || !category || !jtype) {
+          e.preventDefault();
+          alert('Please fill in all required fields');
+          return false;
+        }
+      });
+    }
+  });
+
+  // Close modal when clicking outside of it
+  document.addEventListener('click', function(event) {
+    const addModal = document.getElementById('add-template-modal');
+    const editModal = document.getElementById('edit-template-modal');
+    
+    if (event.target === addModal) {
+      addModal.style.display = 'none';
+    }
+    if (event.target === editModal) {
+      editModal.style.display = 'none';
+    }
+  });
+
+  // Allow ESC key to close modals
+  document.addEventListener('keydown', function(event) {
+    if (event.key === 'Escape') {
+      const addModal = document.getElementById('add-template-modal');
+      const editModal = document.getElementById('edit-template-modal');
+      
+      if (addModal && addModal.style.display === 'flex') {
+        addModal.style.display = 'none';
+      }
+      if (editModal && editModal.style.display === 'flex') {
+        editModal.style.display = 'none';
+      }
+    }
+  });
 </script>
 
 {% endblock %}
