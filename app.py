@@ -4136,8 +4136,10 @@ def worker_job_detail(slug_or_id):
     uid = session["user_id"]
     # Try to parse as job_id (numeric) first, then as slug
     job_id = None
+    accessed_by_id = False
     try:
         job_id = int(slug_or_id)
+        accessed_by_id = True
     except ValueError:
         pass
     
@@ -4159,8 +4161,8 @@ def worker_job_detail(slug_or_id):
     if not job_id:
         job_id = job.get("id")
     
-    # Redirect numeric IDs to slug-based URLs for SEO
-    if not (slug_or_id.isdigit() if isinstance(slug_or_id, str) else False) and job.get("slug"):
+    # Redirect numeric IDs to slug-based URLs for SEO (but don't redirect if already accessed by slug)
+    if accessed_by_id and job.get("slug"):
         return redirect(url_for("worker_job_detail", slug_or_id=job["slug"]))
         
     # Process simulated applicant logic for job detail
