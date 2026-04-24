@@ -1478,6 +1478,64 @@ def _build_welcome_email_html(role: str, name: str | None = None, expiry_date: s
 def _hash_reset_token(token: str) -> str:
     return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
+def _flatten_nested_description(desc) -> str:
+    """Flatten nested dict/list descriptions into a clean string format."""
+    if isinstance(desc, str):
+        return desc
+    
+    if isinstance(desc, dict):
+        parts = []
+        section_order = [
+            "Overview", "Project Scope", "Responsibilities", "Requirements", 
+            "Key Features", "Nice to Have", "Tech Stack", "Deliverables"
+        ]
+        
+        # Process sections in order
+        for section in section_order:
+            if section in desc:
+                value = desc[section]
+                parts.append(f"{section}:")
+                
+                if isinstance(value, list):
+                    for item in value:
+                        item_str = str(item).strip()
+                        if item_str:
+                            # Ensure each item starts with a dash
+                            if not item_str.startswith(("-", "*")):
+                                parts.append(f"- {item_str}")
+                            else:
+                                parts.append(item_str)
+                elif isinstance(value, str):
+                    value = value.strip()
+                    if value:
+                        if not value.startswith(("-", "*")):
+                            parts.append(f"- {value}")
+                        else:
+                            parts.append(value)
+        
+        # Add any remaining sections not in order
+        for key, value in desc.items():
+            if key not in section_order:
+                parts.append(f"{key}:")
+                if isinstance(value, list):
+                    for item in value:
+                        item_str = str(item).strip()
+                        if item_str and not item_str.startswith(("-", "*")):
+                            parts.append(f"- {item_str}")
+                        elif item_str:
+                            parts.append(item_str)
+                else:
+                    value_str = str(value).strip()
+                    if value_str and not value_str.startswith(("-", "*")):
+                        parts.append(f"- {value_str}")
+                    elif value_str:
+                        parts.append(value_str)
+        
+        return "\n\n".join(parts) if parts else ""
+    
+    return str(desc)
+
+
 def _normalize_ai_job_description(text: str) -> str:
     body = (text or "").strip()
     if not body:
@@ -1711,7 +1769,7 @@ def _generate_ai_jobs_groq(store: MySQLStore) -> int:
         for item in items:
             try:
                 title = str(item.get("title", "")).strip()[:255]
-                description = _normalize_ai_job_description(str(item.get("description", "")))
+                description = _normalize_ai_job_description(_flatten_nested_description(item.get("description", "")))
                 job_type = str(item.get("job_type", "fixed")).lower().strip()
                 raw_budget = item.get("budget_usd", 0)
                 duration = str(item.get("duration", "1 month")).strip()[:80]
