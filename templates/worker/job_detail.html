@@ -128,13 +128,13 @@
     
     {% if job.robot_name %}
     <hr class="divider">
-    <h2 class="section-title" style="font-size:.95rem;">Winning Candidate</h2>
+    <h2 class="section-title" style="font-size:.95rem;">Awarded To</h2>
     <div class="winner-box">
       <div id="winner-avatar-{{ job.id }}" class="winner-avatar" style="color:#fff;font-weight:600;display:flex;align-items:center;justify-content:center;font-size:1.4rem;">
         {{ job.robot_name[0] | upper }}
       </div>
       <div>
-        <div class="winner-label">Selected Candidate</div>
+        <div class="winner-label">Selected Professional</div>
         <div class="winner-name">{{ job.robot_name }}</div>
         <div class="winner-conn">Bid: <strong>{{ job.connects_shown }} connects</strong></div>
         {% if job.success_rate %}
