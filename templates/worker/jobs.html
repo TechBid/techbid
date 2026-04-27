@@ -56,7 +56,7 @@
               <span class="job-badge {{ 'badge-fixed' if job.job_type=='fixed' else 'badge-hourly' if job.job_type=='hourly' else 'badge-daily' }}">
                 {{ job.job_type | capitalize }}
               </span>
-            {% if (job.robot_name and job.awarded_at) or job.status != 'open' %}<span class="job-badge" style="background:#f0f0f0;color:#666;">Closed</span>{% else %}<span class="job-badge" style="background:#e8f5e9;color:#2e7d32;">Open</span>{% endif %}
+            {% if (job.robot_name and job.awarded_at and now >= job.awarded_at) or job.status != 'open' %}<span class="job-badge" style="background:#f0f0f0;color:#666;">Closed</span>{% else %}<span class="job-badge" style="background:#e8f5e9;color:#2e7d32;">Open</span>{% endif %}
               <span>${{ "%.0f"|format(job.budget_usd) }}</span>
               <span>{{ job.connects_required }} connects</span>
               {% if job.created_at %}<span>{{ job.created_at | time_ago }}</span>{% endif %}

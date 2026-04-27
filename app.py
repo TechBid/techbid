@@ -4045,7 +4045,8 @@ def worker_jobs():
                            page=page, pages=pages, total=total,
                            cat=cat, jtype=jtype, search=search,
                            seo_title=seo_title,
-                           seo_description=seo_description)
+                           seo_description=seo_description,
+                           now=datetime.utcnow())
 
 
 
