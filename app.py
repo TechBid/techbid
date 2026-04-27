@@ -3985,10 +3985,10 @@ def worker_jobs():
     jtype   = request.args.get("type", "")
     search  = request.args.get("q", "").strip()
     page    = max(1, int(request.args.get("page", 1)))
-    per_page = 20
+    per_page = 15
     offset  = (page - 1) * per_page
 
-    wheres = ["j.status='open'"]
+    wheres = []
     params: list = []
     if cat and cat in JOB_CATEGORIES:
         wheres.append("j.category=%s"); params.append(cat)
@@ -4034,13 +4034,13 @@ def worker_jobs():
     # SEO metadata for job listings
     if search:
         seo_title = f"Jobs matching '{search}' | TechBid"
-        seo_description = f"Find {total} freelance jobs matching '{search}' on TechBid Marketplace."
+        seo_description = f"Find {total} freelance jobs matching '{search}' on TechBid Marketplace (includes job history)."
     elif cat:
         seo_title = f"{cat} Jobs | TechBid"
-        seo_description = f"Find {total} {cat} freelance jobs on TechBid Marketplace."
+        seo_description = f"Find {total} {cat} freelance jobs on TechBid Marketplace (including job history)."
     else:
         seo_title = "Find Freelance Jobs | TechBid"
-        seo_description = f"Browse {total} open freelance jobs on TechBid Marketplace."
+        seo_description = f"Browse {total} freelance jobs on TechBid Marketplace. View complete job history (open and closed projects)."
     
     return render_template("worker/jobs.html", jobs=jobs, applied_ids=applied_ids,
                            page=page, pages=pages, total=total,
