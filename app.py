@@ -3998,7 +3998,6 @@ def worker_jobs():
         wheres.append("(j.title LIKE %s OR j.description LIKE %s)")
         params += [f"%{search}%", f"%{search}%"]
     where_sql = " AND ".join(wheres) if wheres else "1=1"
-    where_sql += " AND (j.is_robot=0 OR rw.awarded_at IS NULL OR rw.awarded_at > UTC_TIMESTAMP())"
 
     total_row = STORE.query_one(
         f"SELECT COUNT(*) as c FROM {STORE.t('jobs')} j "
