@@ -1490,10 +1490,22 @@ def _flatten_nested_description(desc) -> str:
             "Key Features", "Nice to Have", "Tech Stack", "Deliverables"
         ]
         
+        # Helper to check if a value has content
+        def has_content(value):
+            if isinstance(value, list):
+                return any(str(item).strip() for item in value)
+            elif isinstance(value, str):
+                return bool(value.strip())
+            return bool(value)
+        
         # Process sections in order
         for section in section_order:
             if section in desc:
                 value = desc[section]
+                # Only add section if it has content
+                if not has_content(value):
+                    continue
+                
                 parts.append(f"{section}:")
                 
                 if isinstance(value, list):
@@ -1513,9 +1525,9 @@ def _flatten_nested_description(desc) -> str:
                         else:
                             parts.append(value)
         
-        # Add any remaining sections not in order
+        # Add any remaining sections not in order (only if they have content)
         for key, value in desc.items():
-            if key not in section_order:
+            if key not in section_order and has_content(value):
                 parts.append(f"{key}:")
                 if isinstance(value, list):
                     for item in value:
@@ -1547,6 +1559,37 @@ def _normalize_ai_job_description(text: str) -> str:
             "Requirements:\n"
             "- Relevant technical experience."
         )
+    
+    # Check if this is just headers with no actual content (empty sections)
+    # Pattern: section headers followed by nothing or only whitespace
+    lines = body.split('\n')
+    has_actual_content = False
+    for line in lines:
+        stripped = line.strip()
+        # Check if line is actual content (not just a section header, not empty, not just dash/asterisk)
+        if stripped and not stripped.endswith(':') and stripped not in ['-', '*', '']:
+            has_actual_content = True
+            break
+    
+    # If only section headers but no content, use fallback
+    if not has_actual_content:
+        lines = [ln.strip() for ln in re.split(r"[.\n]+", body) if ln.strip() and not ln.strip().endswith(':')]
+        bullets = lines[:9]
+        return (
+            "Overview:\n"
+            f"- {bullets[0] if bullets else 'Project details provided on request.'}\n\n"
+            "Project Scope:\n"
+            f"- {bullets[1] if len(bullets) > 1 else 'Build and deliver the requested solution.'}\n\n"
+            "Responsibilities:\n"
+            f"- {bullets[2] if len(bullets) > 2 else 'Deliver a production-ready implementation.'}\n"
+            f"- {bullets[3] if len(bullets) > 3 else 'Communicate progress and blockers clearly.'}\n\n"
+            "Requirements:\n"
+            f"- {bullets[4] if len(bullets) > 4 else 'Strong relevant technical skills.'}\n"
+            f"- {bullets[5] if len(bullets) > 5 else 'Experience with similar projects.'}\n\n"
+            "Nice to Have:\n"
+            f"- {bullets[6] if len(bullets) > 6 else 'Portfolio or past examples.'}"
+        )[:4000]
+    
     # If already structured with sections/bullets, preserve it (up to 4000 chars for richer detail)
     if any(mark in body for mark in ("\n- ", "\n* ", "Overview:", "Project Scope:", "Key Features:", 
                                       "Responsibilities:", "Requirements:", "Tech Stack:", 
