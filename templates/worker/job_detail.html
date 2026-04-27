@@ -122,29 +122,26 @@
     </div>
     {% endif %}
 
-    {% if already_applied %}
-    <div class="alert alert-info" style="margin-top:20px;">
-      <strong>✓ Application Submitted</strong><br>
-      You've already applied for this job. Check your dashboard to track your application status.
-    </div>
+    {% if (job.robot_name and job.awarded_at and now >= job.awarded_at) or job.status != 'open' %}
+    <!-- Job is closed - show winner info to everyone -->
+    <div class="alert alert-warning">This job is closed and no longer accepting applications.</div>
     
-    {% if job.robot_name and job.is_robot and job.awarded_at and now >= job.awarded_at %}
+    {% if job.robot_name %}
     <hr class="divider">
-    <h2 class="section-title" style="font-size:.95rem;">Interview Round Outcome</h2>
+    <h2 class="section-title" style="font-size:.95rem;">Winning Candidate</h2>
     <div class="winner-box">
       <div id="winner-avatar-{{ job.id }}" class="winner-avatar" style="color:#fff;font-weight:600;display:flex;align-items:center;justify-content:center;font-size:1.4rem;">
         {{ job.robot_name[0] | upper }}
       </div>
       <div>
-        <div class="winner-label">Top Shortlisted Candidate</div>
+        <div class="winner-label">Selected Candidate</div>
         <div class="winner-name">{{ job.robot_name }}</div>
-        <div class="winner-conn">Appears with a bid of <strong>{{ job.connects_shown }} connects</strong></div>
+        <div class="winner-conn">Bid: <strong>{{ job.connects_shown }} connects</strong></div>
         {% if job.success_rate %}
         <div class="winner-conn">Success rate: <strong>{{ "%.1f"|format(job.success_rate) }}%</strong> · Completed jobs: <strong>{{ job.completed_jobs or 0 }}</strong></div>
         {% endif %}
       </div>
     </div>
-    <p class="text-sm text-muted mt-1">Your application did not make the final interview shortlist. Higher connects bids improve visibility.</p>
     <script>
       (function(){
         const name = "{{ job.robot_name }}";
@@ -154,9 +151,19 @@
       })();
     </script>
     {% endif %}
+    
+    {% if already_applied %}
+    <div class="alert alert-info" style="margin-top:20px;">
+      <strong>✓ Application Submitted</strong><br>
+      You've already applied for this job. Check your dashboard to track your application status.
+    </div>
+    {% endif %}
 
-    {% elif (job.robot_name and job.awarded_at and now >= job.awarded_at) or job.status != 'open' %}
-    <div class="alert alert-warning">This job is closed and no longer accepting applications.</div>
+    {% elif already_applied %}
+    <div class="alert alert-info" style="margin-top:20px;">
+      <strong>✓ Application Submitted</strong><br>
+      You've already applied for this job. Check your dashboard to track your application status.
+    </div>
     {% else %}
     <hr class="divider" style="margin-top:32px;">
     
