@@ -1696,6 +1696,47 @@ def _get_active_employer_names(store: MySQLStore) -> list[str]:
         LOG.warning("Failed to load employer names from DB: %s", exc)
     return _AI_EMPLOYER_NAMES  # Fallback to hardcoded
 
+def _repair_json_from_groq(raw_json: str) -> str:
+    """Repair JSON with unescaped newlines in string values.
+    
+    Groq sometimes returns descriptions with literal newlines instead of escaped \\n.
+    This function attempts to fix that before parsing by going through the JSON
+    character-by-character and escaping unescaped newlines within string values.
+    """
+    result = []
+    in_string = False
+    escape_next = False
+    
+    for char in raw_json:
+        if escape_next:
+            result.append(char)
+            escape_next = False
+            continue
+        
+        if char == '\\' and in_string:
+            result.append(char)
+            escape_next = True
+            continue
+        
+        if char == '"' and not escape_next:
+            in_string = not in_string
+            result.append(char)
+            continue
+        
+        if char == '\n' and in_string:
+            # Unescaped newline in string - escape it
+            result.append('\\n')
+            continue
+        
+        if char == '\r' and in_string:
+            # Unescaped carriage return in string - escape it
+            result.append('\\r')
+            continue
+        
+        result.append(char)
+    
+    return ''.join(result)
+
 def _generate_ai_jobs(store: MySQLStore) -> int:
     """Generate AI-powered job postings using hybrid Groq + Gemini approach.
     
@@ -1805,8 +1846,15 @@ def _generate_ai_jobs_groq(store: MySQLStore) -> int:
             if not isinstance(items, list):
                 items = [items]
         except json.JSONDecodeError as e:
-            LOG.error("Invalid JSON from Groq: %s... (first 200 chars)", raw[:200])
-            return 0
+            # Try repairing JSON with unescaped newlines
+            try:
+                repaired = _repair_json_from_groq(raw)
+                items = json.loads(repaired)
+                if not isinstance(items, list):
+                    items = [items]
+            except json.JSONDecodeError:
+                LOG.error("Invalid JSON from Groq: %s... (first 200 chars)", raw[:200])
+                return 0
         
         # Process each job
         for item in items:
@@ -1973,8 +2021,15 @@ def _generate_ai_jobs_gemini(store: MySQLStore) -> int:
             if not isinstance(items, list):
                 items = [items]
         except json.JSONDecodeError as e:
-            LOG.error("Invalid JSON from Gemini: %s... (first 200 chars)", raw[:200])
-            return 0
+            # Try repairing JSON with unescaped newlines
+            try:
+                repaired = _repair_json_from_groq(raw)
+                items = json.loads(repaired)
+                if not isinstance(items, list):
+                    items = [items]
+            except json.JSONDecodeError:
+                LOG.error("Invalid JSON from Gemini: %s... (first 200 chars)", raw[:200])
+                return 0
         
         # Process each job
         for item in items:
