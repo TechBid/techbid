@@ -1806,9 +1806,7 @@ def _generate_ai_jobs_groq(store: MySQLStore) -> int:
                  category, key_index + 1, today_count)
         
         prompt = (
-            f"CRITICAL: Generate exactly 1 job posting for the '{category}' category ONLY.\n"
-            f"The entire job (title, description, requirements) MUST be about {category}.\n"
-            f"If the job doesn't fit {category}, REJECT and explain why.\n\n"
+            f"Generate exactly 1 job posting for the '{category}' category.\n\n"
             "RETURN VALID JSON ONLY:\n"
             "[{\"title\": \"...\", \"description\": \"...\", \"job_type\": \"hourly\", \"budget_usd\": 1500, \"duration\": \"2 weeks\", \"robot_winner_name\": \"Maria S.\"}]\n\n"
             "KEY RULES:\n"
@@ -1817,14 +1815,9 @@ def _generate_ai_jobs_groq(store: MySQLStore) -> int:
             "3. description MUST include: Overview, Project Scope, Responsibilities, Requirements, Key Features, Nice to Have\n"
             "4. Each section header ends with colon, bullet points start with dash\n"
             "5. budget_usd, job_type, duration, robot_winner_name are SEPARATE JSON fields, NOT in description\n"
-            "6. CATEGORY VALIDATION (CRITICAL):\n"
-            "   Cybersecurity: Security audits, penetration testing, security infrastructure, threat detection\n"
-            "   Data Science: ML models, analytics, predictive algorithms, data pipelines\n"
-            "   Web Development: Websites, web apps, REST APIs, backend systems\n"
-            "   Mobile Development: iOS/Android/React Native apps ONLY\n"
-            "   DO NOT MIX CATEGORIES. Food delivery pricing is NOT Cybersecurity.\n"
-            "7. DOMAIN DIVERSITY: Use different industries (Fintech, Healthcare, EdTech, Logistics, etc.)\n"
-            "   DO NOT always default to e-commerce.\n\n"
+            "6. DOMAIN DIVERSITY: Vary business domains and problem contexts:\n"
+            "   Use different industries: Fintech, Healthcare, EdTech, SaaS, PropTech, MarTech, Logistics, Travel, Food Delivery, Analytics, Social Media\n"
+            "   DO NOT always default to e-commerce or generic projects. Spread across diverse real-world use cases.\n\n"
             "DESCRIPTION TEXT EXAMPLE (what goes in 'description' field ONLY):\n"
             "Overview:\n- We're building a fintech dashboard for real-time portfolio tracking\n- Need efficient data visualization for 100k+ daily active users\n\n"
             "Project Scope:\n- Build interactive frontend components for financial charts\n- Integrate with market data APIs\n- Add real-time price updates via WebSocket\n\n"
@@ -2017,17 +2010,12 @@ def _generate_ai_jobs_gemini(store: MySQLStore) -> int:
         LOG.info("Gemini AI job generation started for category: %s (%d jobs today)", category, today_count)
         
         prompt = (
-            f"CRITICAL: Generate exactly 1 professional job posting for '{category}' category ONLY.\n"
-            f"The ENTIRE job (title, description, requirements) MUST be relevant to '{category}'.\n"
-            f"Do NOT generate jobs from other categories mixed in.\n\n"
+            f"Generate exactly 1 professional freelance job posting for the '{category}' category.\n\n"
             "Return ONLY a JSON array (no markdown, no explanation). Each job object must have:\n"
             '{"title": "...", "description": "...", "job_type": "hourly|daily|fixed", "budget_usd": <number>, "duration": "...", "robot_winner_name": "FirstName L."}\n\n'
-            "CATEGORY VALIDATION:\n"
-            "  Cybersecurity jobs: Security audits, penetration testing, security infrastructure, threat analysis\n"
-            "  Data Science jobs: ML models, analytics, predictive algorithms, data pipelines\n"
-            "  Web Development jobs: Websites, web apps, APIs, backend systems\n"
-            "  Mobile Development jobs: iOS, Android, React Native apps ONLY\n"
-            "  DO NOT mix categories. A food delivery pricing algorithm is NOT Cybersecurity.\n\n"
+            "DOMAIN DIVERSITY: Vary business domains and problem contexts across jobs:\n"
+            "  Use different industries: Fintech, Healthcare, EdTech, SaaS, PropTech, MarTech, Logistics, Travel, Food Delivery, Analytics, Social Media\n"
+            "  DO NOT always default to e-commerce or generic projects. Spread across diverse real-world use cases.\n\n"
             "- description: Create a detailed, well-structured job posting (200-350 words, max 400). Use these sections:\n"
             "  Overview:\n"
             "  - Clear 1-2 sentence project summary\n"
