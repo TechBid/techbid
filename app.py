@@ -1788,14 +1788,15 @@ def _generate_ai_jobs_groq(store: MySQLStore) -> int:
             LOG.warning("⚠️ Daily generation limit reached (%d/day). Skipping to protect rate limits.", daily_limit)
             return 0
         
-        # Avoid category repetition by weighting less-used categories
+        # Avoid category repetition by weighting less-used categories (squared formula for aggressive diversity)
         try:
             cat_stats = store.query(
                 f"SELECT category, COUNT(*) as cnt FROM {store.t('jobs')} WHERE is_robot=1 AND created_at > DATE_SUB(NOW(), INTERVAL 7 DAYS) GROUP BY category",
                 ()
             ) or []
             cat_counts = {row['category']: row['cnt'] for row in cat_stats}
-            weights = [1.0 / (cat_counts.get(cat, 0) + 1) for cat in JOB_CATEGORIES]
+            # Squared inverse: strongly penalizes frequent categories, prioritizes unused ones
+            weights = [1.0 / ((cat_counts.get(cat, 0) + 1) ** 2) for cat in JOB_CATEGORIES]
             category = random.choices(JOB_CATEGORIES, weights=weights)[0]
         except:
             category = random.choice(JOB_CATEGORIES)
@@ -1989,14 +1990,15 @@ def _generate_ai_jobs_gemini(store: MySQLStore) -> int:
             LOG.warning("⚠️ Daily generation limit reached (%d/day). Skipping to protect free tier quota.", daily_limit)
             return 0
         
-        # Avoid category repetition by weighting less-used categories
+        # Avoid category repetition by weighting less-used categories (squared formula for aggressive diversity)
         try:
             cat_stats = store.query(
                 f"SELECT category, COUNT(*) as cnt FROM {store.t('jobs')} WHERE is_robot=1 AND created_at > DATE_SUB(NOW(), INTERVAL 7 DAYS) GROUP BY category",
                 ()
             ) or []
             cat_counts = {row['category']: row['cnt'] for row in cat_stats}
-            weights = [1.0 / (cat_counts.get(cat, 0) + 1) for cat in JOB_CATEGORIES]
+            # Squared inverse: strongly penalizes frequent categories, prioritizes unused ones
+            weights = [1.0 / ((cat_counts.get(cat, 0) + 1) ** 2) for cat in JOB_CATEGORIES]
             category = random.choices(JOB_CATEGORIES, weights=weights)[0]
         except:
             category = random.choice(JOB_CATEGORIES)
