@@ -1788,7 +1788,17 @@ def _generate_ai_jobs_groq(store: MySQLStore) -> int:
             LOG.warning("⚠️ Daily generation limit reached (%d/day). Skipping to protect rate limits.", daily_limit)
             return 0
         
-        category = random.choice(JOB_CATEGORIES)
+        # Avoid category repetition by weighting less-used categories
+        try:
+            cat_stats = store.query(
+                f"SELECT category, COUNT(*) as cnt FROM {store.t('jobs')} WHERE is_robot=1 AND created_at > DATE_SUB(NOW(), INTERVAL 7 DAYS) GROUP BY category",
+                ()
+            ) or []
+            cat_counts = {row['category']: row['cnt'] for row in cat_stats}
+            weights = [1.0 / (cat_counts.get(cat, 0) + 1) for cat in JOB_CATEGORIES]
+            category = random.choices(JOB_CATEGORIES, weights=weights)[0]
+        except:
+            category = random.choice(JOB_CATEGORIES)
         count = 0
         
         LOG.info("Groq AI job generation started for category: %s (Key: %d, %d jobs today)", 
@@ -1812,7 +1822,12 @@ def _generate_ai_jobs_groq(store: MySQLStore) -> int:
             "Key Features:\n- Real-time updates\n- Mobile responsive\n- SEO optimized\n\n"
             "Nice to Have:\n- Portfolio links\n- Previous e-commerce work\n\n"
             "SEPARATE JSON FIELDS (these go in the JSON, NOT in description):\n"
-            "- 'title': catchy job title like 'Senior React Developer for E-commerce Platform'\n"
+            "- 'title': Create diverse titles varying the pattern each time:\n"
+            "  * Role-based: 'Senior React Developer for E-commerce Platform'\n"
+            "  * Problem-based: 'Build Real-time Analytics Dashboard'\n"
+            "  * Outcome-based: 'Launch Mobile MVP in 4 Weeks'\n"
+            "  * Tech-based: 'AWS Migration Project - Infrastructure Setup'\n"
+            "  Never repeat the same title pattern twice.\n"
             "- 'job_type': 'fixed' or 'hourly' or 'daily'\n"
             "- 'budget_usd': number between 200-5000 (choose based on type and scope)\n"
             "- 'duration': '2 weeks' or '1 month' or similar\n"
@@ -1974,7 +1989,17 @@ def _generate_ai_jobs_gemini(store: MySQLStore) -> int:
             LOG.warning("⚠️ Daily generation limit reached (%d/day). Skipping to protect free tier quota.", daily_limit)
             return 0
         
-        category = random.choice(JOB_CATEGORIES)
+        # Avoid category repetition by weighting less-used categories
+        try:
+            cat_stats = store.query(
+                f"SELECT category, COUNT(*) as cnt FROM {store.t('jobs')} WHERE is_robot=1 AND created_at > DATE_SUB(NOW(), INTERVAL 7 DAYS) GROUP BY category",
+                ()
+            ) or []
+            cat_counts = {row['category']: row['cnt'] for row in cat_stats}
+            weights = [1.0 / (cat_counts.get(cat, 0) + 1) for cat in JOB_CATEGORIES]
+            category = random.choices(JOB_CATEGORIES, weights=weights)[0]
+        except:
+            category = random.choice(JOB_CATEGORIES)
         count = 0
         
         LOG.info("Gemini AI job generation started for category: %s (%d jobs today)", category, today_count)
@@ -1998,6 +2023,12 @@ def _generate_ai_jobs_gemini(store: MySQLStore) -> int:
             "  - 1-2 bonus requirements\n"
             "- Use bullet points with clear, specific wording\n"
             "- Ensure description is professional and compelling\n"
+            "- title: Create diverse titles varying the pattern:\n"
+            "  * 'Senior Backend Engineer for Fintech Startup'\n"
+            "  * 'Build Custom Analytics Dashboard'\n"
+            "  * 'Launch iOS App MVP - 8 Week Project'\n"
+            "  * 'React.js Development - E-commerce Platform'\n"
+            "  Use different structures, not just 'X for Y' every time.\n"
             "- budget_usd: Between 200 and 5000\n"
             "- job_type: One of hourly, daily, fixed\n"
             "- duration: Realistic timeline like '3 weeks', '2 months', '1 month'\n"
