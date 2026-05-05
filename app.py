@@ -110,8 +110,37 @@ JOB_CATEGORIES = [
     "Virtual Assistance", "Web Development", "WordPress Development",
 ]
 
+# ── Category-specific keyword validation (ensures jobs match their assigned category) ──
+# Each category requires at least one keyword from its list in title or description
+CATEGORY_KEYWORDS = {
+    "Translation & Localization": ["translate", "locali", "interpretation", "multilingual", "language", "cultural"],
+    "Content Writing & Copywriting": ["write", "content", "copy", "article", "blog", "editorial"],
+    "Graphic Design": ["design", "graphic", "visual", "creative", "layout", "branding"],
+    "UI/UX Design": ["design", "ui", "ux", "interface", "user experience", "wireframe"],
+    "Photo Editing": ["photo", "edit", "retouch", "image", "photoshop", "visual"],
+    "Video Editing": ["video", "edit", "motion", "animation", "footage", "cut"],
+    "Virtual Assistance": ["manage", "organize", "support", "admin", "assist", "schedule"],
+    "Technical Writing": ["write", "document", "technical", "manual", "guide", "api"],
+    "Animation & Motion Graphics": ["animation", "motion", "graphics", "animate", "visual effects", "3d"],
+}
+
 JOB_TYPES   = ["hourly", "daily", "fixed"]
 USER_ROLES  = ["worker", "employer"]
+
+def _validate_job_category_match(title: str, description: str, category: str) -> bool:
+    """Check if job content matches its assigned category using keyword validation.
+    Returns True if job is valid, False if it should be rejected.
+    Categories without keyword rules always pass.
+    """
+    if category not in CATEGORY_KEYWORDS:
+        return True  # No validation rule for this category, pass it through
+    
+    combined_text = (title + " " + description).lower()
+    required_keywords = CATEGORY_KEYWORDS[category]
+    
+    # Job must contain at least one keyword from its category
+    has_match = any(kw in combined_text for kw in required_keywords)
+    return has_match
 
 # ── Online status tracking (session-based, no timestamp comparisons) ────────────
 # Format: {job_id: {user_id: {"session_id": str, "last_keepalive": timestamp}}}
@@ -1914,6 +1943,11 @@ def _generate_ai_jobs_groq(store: MySQLStore) -> int:
                 jitter = random.uniform(0.72, 1.33)
                 budget = round(min(max_budget, max(min_budget, base_budget * jitter)), 2)
                 
+                # CRITICAL: Validate category match before saving
+                if not _validate_job_category_match(title, description, category):
+                    LOG.warning("Rejecting job - category mismatch. Category: %s, Title: %s...", category, title[:50])
+                    continue
+                
                 connects_req = random.randint(10, 40)
                 winner_conn, winner_completed_jobs, winner_success_rate, winner_style = _build_robot_winner_profile()
                 ai_employer_name = _pick_employer_name(store)
@@ -2114,6 +2148,11 @@ def _generate_ai_jobs_gemini(store: MySQLStore) -> int:
                     base_budget = random.uniform(min_budget, max_budget)
                 jitter = random.uniform(0.72, 1.33)
                 budget = round(min(max_budget, max(min_budget, base_budget * jitter)), 2)
+                
+                # CRITICAL: Validate category match before saving
+                if not _validate_job_category_match(title, description, category):
+                    LOG.warning("Rejecting job - category mismatch. Category: %s, Title: %s...", category, title[:50])
+                    continue
                 
                 connects_req = random.randint(10, 40)
                 winner_conn, winner_completed_jobs, winner_success_rate, winner_style = _build_robot_winner_profile()
