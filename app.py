@@ -302,6 +302,70 @@ def _message_worker_loop():
             LOG.error(f"Message worker error: {e}")
 
 
+# ── AI Job Scheduler (background thread for periodic job generation) ──────────
+# Generates jobs at intervals, respecting rate limits
+# Uses weighted category selection to avoid repetition (squared inverse formula)
+AI_SCHEDULER_RUNNING = False
+AI_SCHEDULER_THREAD = None
+AI_JOB_LAST_RUN = None  # Timestamp of last generation attempt
+AI_JOB_GENERATION_INTERVAL_MINUTES = 120  # Generate jobs every 2 hours (configurable)
+
+
+def _start_ai_job_scheduler():
+    """Start the background AI job scheduler thread (called at app startup)."""
+    global AI_SCHEDULER_RUNNING, AI_SCHEDULER_THREAD
+    if AI_SCHEDULER_RUNNING:
+        return
+    
+    AI_SCHEDULER_RUNNING = True
+    AI_SCHEDULER_THREAD = threading.Thread(target=_ai_job_scheduler_loop, daemon=True)
+    AI_SCHEDULER_THREAD.start()
+    LOG.info("✓ AI job scheduler started (generates jobs every %d minutes)", AI_JOB_GENERATION_INTERVAL_MINUTES)
+
+
+def _ai_job_scheduler_loop():
+    """Background scheduler: Periodically generate AI jobs.
+    
+    Uses weighted category selection (squared inverse) to avoid repeating categories.
+    Respects Groq (12 jobs/day) and Gemini (10 jobs/day) rate limits.
+    """
+    global AI_JOB_LAST_RUN
+    
+    # Wait 5 minutes before first run to let app stabilize
+    time.sleep(300)
+    
+    while AI_SCHEDULER_RUNNING:
+        try:
+            now = datetime.utcnow()
+            
+            # Check if enough time has passed since last run
+            if AI_JOB_LAST_RUN is None or (now - AI_JOB_LAST_RUN).total_seconds() >= (AI_JOB_GENERATION_INTERVAL_MINUTES * 60):
+                AI_JOB_LAST_RUN = now
+                
+                try:
+                    # Try Groq first (primary provider)
+                    count = _generate_ai_jobs_groq(STORE)
+                    if count == 0:
+                        # Groq failed or rate limited, try Gemini as fallback
+                        count = _generate_ai_jobs_gemini(STORE)
+                    
+                    if count > 0:
+                        LOG.info("✓ Scheduler: Generated %d job(s) in background", count)
+                    else:
+                        LOG.warning("⚠ Scheduler: No jobs generated (rate limited or API error)")
+                
+                except Exception as err:
+                    LOG.error("✗ Scheduler: Job generation failed: %s", err)
+                    # Continue to next cycle even on error
+            
+            # Check every 30 seconds instead of blocking
+            time.sleep(30)
+        
+        except Exception as e:
+            LOG.error("✗ AI scheduler loop error: %s", e)
+            time.sleep(60)  # Wait before retrying
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # Settings
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -2618,10 +2682,12 @@ def _start_email_worker():
 # ── Before request initialization ──────────────────────────────────────────────
 @app.before_request
 def before_request():
-    """Initialize message queue worker on first request."""
-    global MESSAGE_WORKER_RUNNING
+    """Initialize background workers on first request."""
+    global MESSAGE_WORKER_RUNNING, AI_SCHEDULER_RUNNING
     if not MESSAGE_WORKER_RUNNING:
         _start_message_worker()
+    if not AI_SCHEDULER_RUNNING:
+        _start_ai_job_scheduler()
 
 
 # ── Request lifecycle — one connection per request ──────────────────────────────
