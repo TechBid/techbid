@@ -118,10 +118,106 @@ CATEGORY_KEYWORDS = {
     "Graphic Design": ["design", "graphic", "visual", "creative", "layout", "branding"],
     "UI/UX Design": ["design", "ui", "ux", "interface", "user experience", "wireframe"],
     "Photo Editing": ["photo", "edit", "retouch", "image", "photoshop", "visual"],
-    "Video Editing": ["video", "edit", "motion", "animation", "footage", "cut"],
+    "Video Editing": ["video", "edit", "motion", "footage", "premiere", "cut", "color grade"],
     "Virtual Assistance": ["manage", "organize", "support", "admin", "assist", "schedule"],
     "Technical Writing": ["write", "document", "technical", "manual", "guide", "api"],
     "Animation & Motion Graphics": ["animation", "motion", "graphics", "animate", "visual effects", "3d"],
+}
+
+# ── Category-specific title and description templates ──
+CATEGORY_TEMPLATES = {
+    "Web Development": {
+        "description": "Building websites, APIs, web apps. Technologies: React, Vue, Node.js, Django, etc.",
+        "title_examples": [
+            "Build Real-Time Dashboard for Analytics",
+            "Develop Microservices API Architecture",
+            "Create Multi-Tenant SaaS Platform",
+            "Optimize Payment Processing Pipeline",
+            "Build Mobile-First E-commerce Frontend",
+        ],
+    },
+    "Mobile Development": {
+        "description": "Building mobile apps for iOS/Android. Technologies: React Native, Swift, Kotlin, Flutter.",
+        "title_examples": [
+            "Build React Native Fitness Tracking App",
+            "Develop iOS Payment Processing App",
+            "Create Android Social Media Feed",
+            "Build Cross-Platform Weather App",
+        ],
+    },
+    "Video Editing": {
+        "description": "Editing video footage, adding effects, color grading, assembling video content.",
+        "title_examples": [
+            "Edit Product Demo Video for Marketing",
+            "Color Grade Cinematic Footage",
+            "Assemble 10-Minute Product Tutorial",
+            "Create Motion Graphics for YouTube Intro",
+            "Edit 30-Second Social Media Ads",
+        ],
+    },
+    "Graphic Design": {
+        "description": "Creating visual designs, logos, marketing materials, branding assets.",
+        "title_examples": [
+            "Design Modern Logo for Fintech Startup",
+            "Create Brand Identity Package",
+            "Design Marketing Collateral Suite",
+            "Create Packaging Design for Product",
+        ],
+    },
+    "Animation & Motion Graphics": {
+        "description": "Creating animated content, motion graphics, visual effects, character animation.",
+        "title_examples": [
+            "Create 2D Animation Explainer Video",
+            "Design Motion Graphics for Presentation",
+            "Animate Character for Video Game",
+            "Create Visual Effects for Film Trailer",
+        ],
+    },
+    "UI/UX Design": {
+        "description": "Designing user interfaces, user experiences, wireframes, prototypes. Tools: Figma, Adobe XD.",
+        "title_examples": [
+            "Redesign Mobile App Checkout Flow",
+            "Create Wireframes for SaaS Dashboard",
+            "Design Design System for Startup",
+            "Prototype Healthcare App Interface",
+        ],
+    },
+    "Translation & Localization": {
+        "description": "Translating content to other languages, localizing products for different markets.",
+        "title_examples": [
+            "Translate Marketing Website to Spanish",
+            "Localize Mobile App for Japanese Market",
+            "Translate Technical Documentation to German",
+            "Localize E-commerce Platform to Portuguese",
+        ],
+    },
+    "Content Writing & Copywriting": {
+        "description": "Writing blog posts, articles, marketing copy, social media content, email campaigns.",
+        "title_examples": [
+            "Write 10 SEO-Optimized Blog Posts",
+            "Create Email Marketing Campaign Copy",
+            "Write Product Description Pages",
+            "Create Social Media Content Calendar",
+        ],
+    },
+    "Virtual Assistance": {
+        "description": "Administrative support, scheduling, email management, data entry, research.",
+        "title_examples": [
+            "Manage Calendar and Email for Startup",
+            "Organize Research and Data Management",
+            "Handle Scheduling for Consultancy",
+            "Support Administrative Operations",
+        ],
+    },
+    "Data Science & Analytics": {
+        "description": "Data analysis, machine learning, reporting dashboards, statistical modeling.",
+        "title_examples": [
+            "Build Predictive Analytics Dashboard",
+            "Analyze Customer Behavior Dataset",
+            "Create ML Model for Lead Scoring",
+            "Build BI Dashboard for Finance",
+        ],
+    },
 }
 
 JOB_TYPES   = ["hourly", "daily", "fixed"]
@@ -1834,8 +1930,19 @@ def _generate_ai_jobs_groq(store: MySQLStore) -> int:
         LOG.info("Groq AI job generation started for category: %s (Key: %d, %d jobs today)", 
                  category, key_index + 1, today_count)
         
+        # Get category-specific template if available
+        template = CATEGORY_TEMPLATES.get(category, {})
+        category_desc = template.get("description", f"Jobs in the {category} field")
+        title_examples = template.get("title_examples", [])
+        title_examples_str = "\n".join([f"  - {ex}" for ex in title_examples[:3]])  # Show first 3 examples
+        
         prompt = (
-            f"Generate exactly 1 job posting for the '{category}' category.\n\n"
+            f"You are generating a job posting STRICTLY for the '{category}' category.\n\n"
+            f"CATEGORY DEFINITION: {category_desc}\n"
+            f"Your job title MUST clearly be from the {category} field. Examples:\n{title_examples_str}\n\n"
+            f"CRITICAL: The job title must be about {category}, NOT about a different field.\n"
+            f"If you were asked to write a Video Editing job, the title should be about editing/cutting/motion, NOT about building websites.\n"
+            f"If you were asked to write a Web Development job, the title should be about developing/building/coding, NOT about video editing.\n\n"
             "RETURN VALID JSON ONLY:\n"
             "[{\"title\": \"...\", \"description\": \"...\", \"job_type\": \"hourly\", \"budget_usd\": 1500, \"duration\": \"2 weeks\", \"robot_winner_name\": \"Maria S.\"}]\n\n"
             "KEY RULES:\n"
@@ -1847,6 +1954,7 @@ def _generate_ai_jobs_groq(store: MySQLStore) -> int:
             "6. CRITICAL - Match job language to category:\n"
             "   Translation & Localization: Use 'translate', 'localize', 'cultural adaptation', NOT 'develop', 'build', 'code'\n"
             "   Content Writing: Use 'write', 'create content', 'copywriting', NOT 'code', 'develop'\n"
+            "   Video Editing: Use 'edit', 'cut', 'color grade', 'motion', NOT 'develop', 'build'\n"
             "   Design: Use 'design', 'create designs', NOT 'develop', 'code'\n"
             "   Virtual Assistance: Use 'manage', 'organize', 'support', NOT 'develop', 'code'\n"
             "   Web/Mobile Development: Can use 'build', 'develop', 'code'\n"
@@ -1854,20 +1962,10 @@ def _generate_ai_jobs_groq(store: MySQLStore) -> int:
             "7. DOMAIN DIVERSITY: Vary business domains and problem contexts:\n"
             "   Use different industries: Fintech, Healthcare, EdTech, SaaS, PropTech, MarTech, Logistics, Travel, Food Delivery, Analytics, Social Media\n"
             "   DO NOT always default to e-commerce or generic projects. Spread across diverse real-world use cases.\n\n"
-            "DESCRIPTION TEXT EXAMPLE (what goes in 'description' field ONLY):\n"
-            "Overview:\n- We're building a fintech dashboard for real-time portfolio tracking\n- Need efficient data visualization for 100k+ daily active users\n\n"
-            "Project Scope:\n- Build interactive frontend components for financial charts\n- Integrate with market data APIs\n- Add real-time price updates via WebSocket\n\n"
-            "Responsibilities:\n- Frontend feature development\n- Performance optimization for large datasets\n- Testing with real market conditions\n\n"
-            "Requirements:\n- 4+ years frontend development experience\n- Strong JavaScript/React expertise\n- Experience with financial or real-time data systems\n\n"
-            "Key Features:\n- Real-time data streaming\n- Responsive design for mobile trading\n- Advanced charting capabilities\n\n"
-            "Nice to Have:\n- Crypto/blockchain experience\n- Previous fintech projects\n\n"
             "SEPARATE JSON FIELDS (these go in the JSON, NOT in description):\n"
-            "- 'title': MUST be relevant to '{category}' category and use varied patterns (NOT 'A for B'):\n"
-            "  For Data Science: 'Build ML Pipelines for Fraud Detection', 'Scale Analytics to 100M Events'\n"
-            "  For Web Dev: 'Optimize API Performance Architecture', 'Develop Microservices Gateway'\n"
-            "  For Design: 'Create Design System Documentation', 'Redesign Checkout Experience'\n"
-            "  For Mobile: 'Build React Native App for Logistics', 'Develop iOS Payment Integration'\n"
-            "  Use imperatives, problems, or outcomes. NEVER generic 'Senior X Developer for Y' patterns.\n"
+            "- 'title': MUST be about {category}. Use action words, problems, or outcomes:\n"
+            "  Examples: {title_examples_str}\n"
+            "  NEVER generic 'Senior X Developer for Y' patterns.\n"
             "- 'job_type': 'fixed' or 'hourly' or 'daily'\n"
             "- 'budget_usd': number between 200-5000 (choose based on type and scope)\n"
             "- 'duration': '2 weeks' or '1 month' or similar\n"
@@ -1879,7 +1977,7 @@ def _generate_ai_jobs_groq(store: MySQLStore) -> int:
         response = client.chat.completions.create(
             model=model,
             messages=[
-                {"role": "system", "content": "You are a professional freelance job posting generator. Generate realistic, detailed job postings."},
+                {"role": "system", "content": "You are a professional freelance job posting generator. Generate realistic, detailed job postings that MUST match the assigned category exactly."},
                 {"role": "user", "content": prompt}
             ],
             temperature=0.7,
@@ -2050,8 +2148,19 @@ def _generate_ai_jobs_gemini(store: MySQLStore) -> int:
         
         LOG.info("Gemini AI job generation started for category: %s (%d jobs today)", category, today_count)
         
+        # Get category-specific template if available
+        template = CATEGORY_TEMPLATES.get(category, {})
+        category_desc = template.get("description", f"Jobs in the {category} field")
+        title_examples = template.get("title_examples", [])
+        title_examples_str = "\n".join([f"  - {ex}" for ex in title_examples[:3]])  # Show first 3 examples
+        
         prompt = (
-            f"Generate exactly 1 professional freelance job posting for the '{category}' category.\n\n"
+            f"You are generating a job posting STRICTLY for the '{category}' category.\n\n"
+            f"CATEGORY DEFINITION: {category_desc}\n"
+            f"Your job title MUST clearly be from the {category} field. Examples:\n{title_examples_str}\n\n"
+            f"CRITICAL: The job title must be about {category}, NOT about a different field.\n"
+            f"If you were asked to write a Video Editing job, the title should be about editing/cutting/motion, NOT about building websites.\n"
+            f"If you were asked to write a Web Development job, the title should be about developing/building/coding, NOT about video editing.\n\n"
             "Return ONLY a JSON array (no markdown, no explanation). Each job object must have:\n"
             '{"title": "...", "description": "...", "job_type": "hourly|daily|fixed", "budget_usd": <number>, "duration": "...", "robot_winner_name": "FirstName L."}\n\n'
             "DOMAIN DIVERSITY: Vary business domains and problem contexts across jobs:\n"
@@ -2060,6 +2169,7 @@ def _generate_ai_jobs_gemini(store: MySQLStore) -> int:
             "CRITICAL - Match job language to category:\n"
             "  Translation & Localization: Use 'translate', 'localize', 'cultural adaptation', NOT 'develop', 'build', 'code'\n"
             "  Content Writing: Use 'write', 'create content', 'copywriting', NOT 'code', 'develop'\n"
+            "  Video Editing: Use 'edit', 'cut', 'color grade', 'motion', NOT 'develop', 'build'\n"
             "  Design: Use 'design', 'create designs', NOT 'develop', 'code'\n"
             "  Virtual Assistance: Use 'manage', 'organize', 'support', NOT 'develop', 'code'\n"
             "  Web/Mobile Development: Can use 'build', 'develop', 'code'\n"
@@ -2079,12 +2189,9 @@ def _generate_ai_jobs_gemini(store: MySQLStore) -> int:
             "  - 1-2 bonus requirements\n"
             "- Use bullet points with clear, specific wording\n"
             "- Ensure description is professional and compelling\n"
-            "- title: MUST match '{category}' category. Use varied patterns (NOT 'A for B'):\n"
-            "  For Data Science: 'Build ML Pipelines for Fraud Detection', 'Scale Analytics to 100M Events'\n"
-            "  For Web Dev: 'Optimize API Performance Architecture', 'Develop Microservices Gateway'\n"
-            "  For Design: 'Create Design System Documentation', 'Redesign Checkout Experience'\n"
-            "  For Mobile: 'Build React Native App for Logistics', 'Develop iOS Payment Integration'\n"
-            "  Use imperatives, problems, or outcomes. NEVER generic 'Senior X for Y' templates.\n"
+            "- title: MUST be about {category}. Use action words, problems, or outcomes:\n"
+            "  Examples: {title_examples_str}\n"
+            "  NEVER generic 'Senior X for Y' patterns.\n"
             "- budget_usd: Between 200 and 5000\n"
             "- job_type: One of hourly, daily, fixed\n"
             "- duration: Realistic timeline like '3 weeks', '2 months', '1 month'\n"
